@@ -19,6 +19,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.gis',
     'main',
+    'django.contrib.gis',
+    'vectortiles',
 ]
 
 MIDDLEWARE = [

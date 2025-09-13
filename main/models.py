@@ -28,3 +28,17 @@ class LandCategory(models.Model):
     class Meta:
         db_table = '"filter"."jimok"'
         managed = False
+
+
+#vector tile
+# models.py 예시
+from django.contrib.gis.db import models
+
+class Layer(models.Model):
+    name = models.CharField(max_length=250)
+
+class Feature(models.Model):
+    geom = models.GeometryField(srid=4326)
+    name = models.CharField(max_length=250)
+    layer = models.ForeignKey(Layer, on_delete=models.CASCADE, related_name='features')
+

@@ -40,3 +40,21 @@ def vworld_geocode(request):
         return JsonResponse(data)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+# --- ✅ 여기부터 MVT 추가 ---
+from vectortiles.views import MVTView, TileJSONView
+from .vector_layers import LandCategoryVectorLayer
+
+class _LandBaseLayer:
+    # 여러 레이어를 한 타일에 넣을 수도 있으나 지금은 1개
+    layer_classes = [LandCategoryVectorLayer]
+    # TileJSON이 타일 URL을 알 수 있게 접두어 지정
+    # 결과 경로: /land/<z>/<x>/<y>
+    prefix_url = "land"
+
+class LandTileView(_LandBaseLayer, MVTView):
+    pass
+
+class LandTileJSON(_LandBaseLayer, TileJSONView):
+    pass
