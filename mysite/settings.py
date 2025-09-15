@@ -19,7 +19,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.gis',
     'main',
-    'django.contrib.gis',
     'vectortiles',
 ]
 
@@ -111,3 +110,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 #library path 지정
 GDAL_LIBRARY_PATH = "C:/OSGeo4W/bin/gdal311.dll"
+
+#vworld key 지정
+VWORLD_KEY = os.getenv("VWORLD_KEY")
+
+# (선택) .env를 쓰실 거면 아래 2줄 추가
+from dotenv import load_dotenv
+load_dotenv(BASE_DIR / ".env")  # 프로젝트 루트의 .env 로드

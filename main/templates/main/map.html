@@ -8,10 +8,10 @@
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="{% static 'main/style.css' %}" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style></style>
+  <!-- 앱 스타일 -->
+  <link rel="stylesheet" href="{% static 'main/style.css' %}" />
 </head>
 <body>
   <div class="app">
@@ -19,7 +19,7 @@
     <aside id="sidebar">
       <h3>Auto Solar 패널</h3>
 
-      <!-- 1) 검색 (실제 동작) -->
+      <!-- 1) 검색 -->
       <button class="nav-btn" data-target="panel-search">🔎 검색</button>
       <div id="panel-search" class="panel">
         <div class="search-row">
@@ -31,25 +31,36 @@
         </div>
       </div>
 
-      <!-- 2) 필터 (자리만) -->
+      <!-- 2) 필터 (체크박스 포함) -->
       <button class="nav-btn" data-target="panel-filter">🧰 필터</button>
       <div id="panel-filter" class="panel">
-        <div class="placeholder">필터 UI가 여기에 추가될 예정입니다.</div>
+        <div style="margin:6px 0 10px; font-weight:600;">표시 레이어</div>
+        <label style="display:block; margin-bottom:6px;">
+          <input type="checkbox" id="chk-road" />
+          도로이격
+        </label>
+        <label style="display:block;">
+          <input type="checkbox" id="chk-yongdo" />
+          용도구역
+        </label>
+        <div class="placeholder" style="margin-top:10px; color:#777;">
+          체크하면 현재 화면 범위(BBOX)만 우선 로드합니다.
+        </div>
       </div>
 
-      <!-- 3) 프로젝트 생성 (자리만) -->
+      <!-- 3) 프로젝트 생성 -->
       <button class="nav-btn" data-target="panel-project-create">🆕 프로젝트 생성</button>
       <div id="panel-project-create" class="panel">
         <div class="placeholder">현재 화면 상태로 프로젝트를 생성하는 기능 자리입니다.</div>
       </div>
 
-      <!-- 4) 프로젝트 관리 (자리만) -->
+      <!-- 4) 프로젝트 관리 -->
       <button class="nav-btn" data-target="panel-project-manage">📁 프로젝트 관리</button>
       <div id="panel-project-manage" class="panel">
         <div class="placeholder">기존 프로젝트 불러오기/목록 UI 자리입니다.</div>
       </div>
 
-      <!-- 5) 로그인 (자리만) -->
+      <!-- 5) 로그인 -->
       <button class="nav-btn" data-target="panel-login">🔐 로그인</button>
       <div id="panel-login" class="panel">
         <div class="placeholder">유저별 저장/로드를 위한 로그인 UI 자리입니다.</div>
@@ -60,6 +71,10 @@
     <main id="map"></main>
   </div>
 
+  <!-- 🔑 VWorld 키를 먼저 주입 -->
+  <script>window.VWORLD_KEY = "{{ VWORLD_KEY|default:'' }}";</script>
+
+  <!-- 📜 지도 및 레이어 로직(한 번만 로드) -->
   <script src="{% static 'main/script.js' %}"></script>
 </body>
 </html>
