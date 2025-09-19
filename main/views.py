@@ -149,59 +149,90 @@ def geojson_yongdo(request):
 # --- 소유정보(결합) ---
 def geojson_owner(request):
     bbox = _parse_bbox(request)
-    jm = request.GET.getlist("jm")
-    own = request.GET.getlist("own")
+    jm = request.GET.getlist("jm")   # 지목 필터
+    own = request.GET.getlist("own") # 소유자 필터
 
     sql = """
     WITH sr AS (
-      SELECT COALESCE(NULLIF(ST_SRID(geom),0), 4737) AS srid
+      SELECT CASE
+              WHEN COALESCE(NULLIF(ST_SRID(geom),0),0) <> 0
+                THEN ST_SRID(geom)
+              WHEN (SELECT MAX(ST_X(ST_PointOnSurface(geom))) FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined") > 10000
+                THEN 5186   -- m 단위로 보이면 5186(중부) 가정
+              ELSE 4326
+            END AS srid
       FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined"
-      WHERE geom IS NOT NULL
-      LIMIT 1
-    ),
-    src AS (
+      WHERE geom IS NOT NULL LIMIT 1
+    )
+ 
+    {bbox_cte}
+    , src AS (
       SELECT
         ST_CollectionExtract(ST_MakeValid(t.geom), 3) AS g_poly,
         t.gid,
         t.a20::text AS a20,
         t.a8::text AS a8
-      FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined" t, sr
+      FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined" t
+      {bbox_join}
       WHERE 1=1
-      {bbox_clause}
+      {bbox_where}
       {jm_clause}
       {own_clause}
-    ),
-    f AS (
+    )
+    , feat AS (  -- ← 결과 피처를 확실한 CTE로 만듭니다.
       SELECT jsonb_build_object(
         'type','Feature',
-        'geometry', ST_AsGeoJSON(ST_Transform(g_poly, 4326), 6)::jsonb,
-        'properties', jsonb_build_object('gid', gid, 'a20', COALESCE(a20,''), 'a8', COALESCE(a8,''))
+        'geometry',   ST_AsGeoJSON(ST_Transform(g_poly, 4326), 6)::jsonb,
+        'properties', jsonb_build_object(
+          'gid', gid,
+          'a20', COALESCE(a20,''),
+          'a8',  COALESCE(a8,'')
+        )
       ) AS feature
       FROM src
       WHERE g_poly IS NOT NULL
     )
-    SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
-    FROM f;
+    SELECT jsonb_build_object(
+      'type','FeatureCollection',
+      'features', COALESCE(jsonb_agg(feat.feature), '[]'::jsonb)
+    )::text
+    FROM feat;  -- ← 반드시 FROM feat 로 집계
     """
 
-    clauses = {"bbox_clause": "", "jm_clause": "", "own_clause": ""}
+    clauses = {"bbox_cte": "", "bbox_join": "", "bbox_where": "", "jm_clause": "", "own_clause": ""}
     params = []
+
     if bbox:
-        clauses["bbox_clause"] = (
-            " AND ST_Intersects(t.geom, ST_Transform(ST_MakeEnvelope(%s,%s,%s,%s,4326), (SELECT srid FROM sr)))"
+        clauses["bbox_cte"] = """
+        , b AS (
+          SELECT ST_Transform(
+                   ST_MakeEnvelope(%s,%s,%s,%s,4326),
+                   (SELECT srid FROM sr)
+                 ) AS g
         )
+        """
+        clauses["bbox_join"]  = " JOIN b ON t.geom && b.g "
+        clauses["bbox_where"] = " AND ST_Intersects(t.geom, b.g) "
         params.extend(bbox)
+
     if jm:
-        clauses["jm_clause"] = " AND t.a20 = ANY(%s)"; params.append(jm)
+        clauses["jm_clause"] = " AND t.a20 = ANY(%s) "
+        params.append(jm)
+
     if own:
-        clauses["own_clause"] = " AND t.a8 = ANY(%s)"; params.append(own)
+        clauses["own_clause"] = " AND t.a8 = ANY(%s) "
+        params.append(own)
 
     sql = sql.format(**clauses)
+
     try:
         data = _run_geojson(sql, params)
         return HttpResponse(data, content_type="application/json")
     except Exception as e:
+        import traceback; traceback.print_exc()
         return JsonResponse({"error": str(e)}, status=500)
+
+
 
 # ✅ 새로 추가: jimok(= 기타) 폴리곤 표시
 def geojson_jimok(request):

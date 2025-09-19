@@ -100,7 +100,7 @@
   });
 
   // ✅ 새로 추가: jimok(기타) 레이어 (붉은색 폴리곤)
-  const styleJimok = { color: '#ff0000', weight: 1.2, opacity: 0.95, fillOpacity: 0.15 };
+  const styleJimok = { color: '#030000ff', weight: 0.5, opacity: 0.95, fillOpacity: 0.15 };
   let jimokLayer = L.geoJSON(null, { style: styleJimok });
 
   // AbortControllers
@@ -133,6 +133,7 @@
     } catch (e) { if (e.name !== 'AbortError') console.error('[yongdo]', e); }
   }
 
+  
   async function loadOwner() {
     if (ctlOwner) ctlOwner.abort(); ctlOwner = new AbortController();
     const jmArray = getCheckedValues('#grp-jimok input.jm');
