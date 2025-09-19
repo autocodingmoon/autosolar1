@@ -7,37 +7,28 @@ import requests
 def index(request):
     context = {
         'name': '지환',
-        'users': [
-            {'name': '필준'},
-            {'name': '지민'},
-            {'name': '혁태'},
-        ]
+        'users': [{'name': '필준'}, {'name': '지민'}, {'name': '혁태'}]
     }
     return render(request, 'main/index.html', context)
 
 def map_view(request):
     return render(request, "main/map.html", {"VWORLD_KEY": settings.VWORLD_KEY})
 
-# 👉 Vworld 주소 검색 프록시 API (params 버전)
 def vworld_geocode(request):
     query = request.GET.get("q")
-    addr_type = request.GET.get("type", "ROAD")  # 기본값 ROAD
+    addr_type = request.GET.get("type", "ROAD")
     key = settings.VWORLD_KEY
     if not key:
         return JsonResponse({"error": "VWORLD_KEY is not set"}, status=500)
+    if not query:
+        return JsonResponse({"error": "missing query"}, status=400)
 
     url = "https://api.vworld.kr/req/address"
     params = {
-        "service": "address",
-        "request": "getCoord",
-        "version": "2.0",
-        "crs": "EPSG:4326",
-        "format": "json",
-        "type": addr_type,
-        "address": query,
-        "key": key,
+        "service": "address", "request": "getCoord", "version": "2.0",
+        "crs": "EPSG:4326", "format": "json", "type": addr_type,
+        "address": query, "key": key,
     }
-
     try:
         r = requests.get(url, params=params, timeout=5)
         r.raise_for_status()
@@ -45,26 +36,18 @@ def vworld_geocode(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=502)
 
-
-# --- ✅ 여기부터 MVT 추가 ---
+# --- MVT ---
 from vectortiles.views import MVTView, TileJSONView
 from .vector_layers import LandCategoryVectorLayer
 
 class _LandBaseLayer:
-    # 여러 레이어를 한 타일에 넣을 수도 있으나 지금은 1개
     layer_classes = [LandCategoryVectorLayer]
-    # TileJSON이 타일 URL을 알 수 있게 접두어 지정
-    # 결과 경로: /land/<z>/<x>/<y>
     prefix_url = "land"
 
-class LandTileView(_LandBaseLayer, MVTView):
-    pass
+class LandTileView(_LandBaseLayer, MVTView): pass
+class LandTileJSON(_LandBaseLayer, TileJSONView): pass
 
-class LandTileJSON(_LandBaseLayer, TileJSONView):
-    pass
-
-
-# --- GeoJSON 공통 헬퍼 ---
+# --- GeoJSON 공통 ---
 def _run_geojson(sql, params=None):
     with connection.cursor() as cur:
         cur.execute(sql, params or [])
@@ -81,17 +64,12 @@ def _parse_bbox(request):
     except Exception:
         return None
 
-
-# --- 도로이격 ---
 # --- 도로이격 ---
 def geojson_road(request):
-    """filter.\"3.4_road_lsmd_cont_ui101_44_202508\" → GeoJSON (인덱스 활용)"""
     bbox = _parse_bbox(request)
     if bbox:
-        # 1) bbox를 테이블 SRID로 변환(상수) → 인덱스 전처리(&&) + 정밀 교차 검사
         sql = """
-        WITH
-        b AS (
+        WITH b AS (
           SELECT ST_Transform(
                    ST_MakeEnvelope(%s,%s,%s,%s,4326),
                    Find_SRID('filter','3.4_road_lsmd_cont_ui101_44_202508','geom')
@@ -100,24 +78,18 @@ def geojson_road(request):
         f AS (
           SELECT jsonb_build_object(
             'type','Feature',
-            -- 소수 6자리로 GeoJSON 생성(전송량 절감)
             'geometry', ST_AsGeoJSON(ST_Transform(t.geom,4326), 6)::jsonb,
-            -- 필요한 속성만 남기면 더 빠릅니다. (지금은 기존 유지)
             'properties', to_jsonb(t) - 'geom'
           ) AS feature
           FROM filter."3.4_road_lsmd_cont_ui101_44_202508" t
-          JOIN b ON t.geom && b.g                -- 인덱스 후보군 (빠름)
-          WHERE ST_Intersects(t.geom, b.g)       -- 정밀 교차
+          JOIN b ON t.geom && b.g
+          WHERE ST_Intersects(t.geom, b.g)
         )
-        SELECT jsonb_build_object(
-                 'type','FeatureCollection',
-                 'features', COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
-               )::text
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
         FROM f;
         """
         data = _run_geojson(sql, bbox)
     else:
-        # 전체 요청은 대용량일 경우 무겁습니다. 가능하면 항상 bbox를 사용하세요.
         sql = """
         WITH f AS (
           SELECT jsonb_build_object(
@@ -127,24 +99,18 @@ def geojson_road(request):
           ) AS feature
           FROM filter."3.4_road_lsmd_cont_ui101_44_202508" t
         )
-        SELECT jsonb_build_object(
-                 'type','FeatureCollection',
-                 'features', COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
-               )::text
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
         FROM f;
         """
         data = _run_geojson(sql)
     return HttpResponse(data, content_type="application/json")
 
-
 # --- 용도구역 ---
 def geojson_yongdo(request):
-    """filter.\"1.7_yongdo_lsmd_cont_uq112_44_202508\" → GeoJSON (인덱스 활용)"""
     bbox = _parse_bbox(request)
     if bbox:
         sql = """
-        WITH
-        b AS (
+        WITH b AS (
           SELECT ST_Transform(
                    ST_MakeEnvelope(%s,%s,%s,%s,4326),
                    Find_SRID('filter','1.7_yongdo_lsmd_cont_uq112_44_202508','geom')
@@ -160,10 +126,7 @@ def geojson_yongdo(request):
           JOIN b ON t.geom && b.g
           WHERE ST_Intersects(t.geom, b.g)
         )
-        SELECT jsonb_build_object(
-                 'type','FeatureCollection',
-                 'features', COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
-               )::text
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
         FROM f;
         """
         data = _run_geojson(sql, bbox)
@@ -177,10 +140,144 @@ def geojson_yongdo(request):
           ) AS feature
           FROM filter."1.7_yongdo_lsmd_cont_uq112_44_202508" t
         )
-        SELECT jsonb_build_object(
-                 'type','FeatureCollection',
-                 'features', COALESCE(jsonb_agg(f.feature), '[]'::jsonb)
-               )::text
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
+        FROM f;
+        """
+        data = _run_geojson(sql)
+    return HttpResponse(data, content_type="application/json")
+
+# --- 소유정보(결합) ---
+def geojson_owner(request):
+    bbox = _parse_bbox(request)
+    jm = request.GET.getlist("jm")
+    own = request.GET.getlist("own")
+
+    sql = """
+    WITH sr AS (
+      SELECT COALESCE(NULLIF(ST_SRID(geom),0), 4737) AS srid
+      FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined"
+      WHERE geom IS NOT NULL
+      LIMIT 1
+    ),
+    src AS (
+      SELECT
+        ST_CollectionExtract(ST_MakeValid(t.geom), 3) AS g_poly,
+        t.gid,
+        t.a20::text AS a20,
+        t.a8::text AS a8
+      FROM filter."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined" t, sr
+      WHERE 1=1
+      {bbox_clause}
+      {jm_clause}
+      {own_clause}
+    ),
+    f AS (
+      SELECT jsonb_build_object(
+        'type','Feature',
+        'geometry', ST_AsGeoJSON(ST_Transform(g_poly, 4326), 6)::jsonb,
+        'properties', jsonb_build_object('gid', gid, 'a20', COALESCE(a20,''), 'a8', COALESCE(a8,''))
+      ) AS feature
+      FROM src
+      WHERE g_poly IS NOT NULL
+    )
+    SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(f.feature),'[]'::jsonb))::text
+    FROM f;
+    """
+
+    clauses = {"bbox_clause": "", "jm_clause": "", "own_clause": ""}
+    params = []
+    if bbox:
+        clauses["bbox_clause"] = (
+            " AND ST_Intersects(t.geom, ST_Transform(ST_MakeEnvelope(%s,%s,%s,%s,4326), (SELECT srid FROM sr)))"
+        )
+        params.extend(bbox)
+    if jm:
+        clauses["jm_clause"] = " AND t.a20 = ANY(%s)"; params.append(jm)
+    if own:
+        clauses["own_clause"] = " AND t.a8 = ANY(%s)"; params.append(own)
+
+    sql = sql.format(**clauses)
+    try:
+        data = _run_geojson(sql, params)
+        return HttpResponse(data, content_type="application/json")
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+# ✅ 새로 추가: jimok(= 기타) 폴리곤 표시
+def geojson_jimok(request):
+    """
+    schema.table: filter."jimok"
+    geom(Polygon/MultiPolygon)을 BBOX로 잘라서 4326 GeoJSON 반환.
+    붉은색 스타일은 프런트에서 지정합니다.
+    """
+    bbox = _parse_bbox(request)
+    if bbox:
+        sql = """
+        WITH sr AS (
+          SELECT COALESCE(NULLIF(ST_SRID(geom),0), Find_SRID('filter','jimok','geom')) AS srid
+          FROM filter."jimok"
+          WHERE geom IS NOT NULL
+          LIMIT 1
+        ),
+        b AS (
+          SELECT ST_Transform(ST_MakeEnvelope(%s,%s,%s,%s,4326), (SELECT srid FROM sr)) AS g
+        ),
+        src AS (
+          SELECT
+            ST_CollectionExtract(ST_MakeValid(t.geom), 3) AS g_poly,
+            t.gid,
+            t.pnu,
+            t.jibun,
+            t.col_adm_se,
+            t.region
+          FROM filter."jimok" t, b
+          WHERE t.geom && b.g
+            AND ST_Intersects(t.geom, b.g)
+        ),
+        f AS (
+          SELECT jsonb_build_object(
+            'type','Feature',
+            'geometry', ST_AsGeoJSON(ST_Transform(g_poly, 4326), 6)::jsonb,
+            'properties', jsonb_build_object(
+              'gid', gid,
+              'pnu', pnu,
+              'jibun', COALESCE(jibun,''),
+              'col_adm_se', COALESCE(col_adm_se,''),
+              'region', COALESCE(region,'')
+            )
+          ) AS feature
+          FROM src
+          WHERE g_poly IS NOT NULL
+        )
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(feature),'[]'::jsonb))::text
+        FROM f;
+        """
+        data = _run_geojson(sql, bbox)
+    else:
+        # (주의) 전체 반환은 매우 클 수 있습니다. 운영에서는 bbox 사용 권장.
+        sql = """
+        WITH src AS (
+          SELECT
+            ST_CollectionExtract(ST_MakeValid(t.geom), 3) AS g_poly,
+            t.gid, t.pnu, t.jibun, t.col_adm_se, t.region
+          FROM filter."jimok" t
+        ),
+        f AS (
+          SELECT jsonb_build_object(
+            'type','Feature',
+            'geometry', ST_AsGeoJSON(ST_Transform(g_poly, 4326), 6)::jsonb,
+            'properties', jsonb_build_object(
+              'gid', gid,
+              'pnu', pnu,
+              'jibun', COALESCE(jibun,''),
+              'col_adm_se', COALESCE(col_adm_se,''),
+              'region', COALESCE(region,'')
+            )
+          ) AS feature
+          FROM src
+          WHERE g_poly IS NOT NULL
+        )
+        SELECT jsonb_build_object('type','FeatureCollection','features',COALESCE(jsonb_agg(feature),'[]'::jsonb))::text
         FROM f;
         """
         data = _run_geojson(sql)

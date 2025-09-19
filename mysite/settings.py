@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-z*mzee62wgdu3y-&_^ydfz)121-4x(l$pa&(*=@)zocduxj&u2'
@@ -8,6 +9,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# OSGeo4W(GDAL/GEOS) 경로
 os.environ['PATH'] += r";C:\OSGeo4W\bin"
 
 INSTALLED_APPS = [
@@ -52,10 +54,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mysite.wsgi.application'
 
-
 # Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
@@ -68,52 +67,29 @@ DATABASES = {
 }
 
 # Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
-
 # Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
-
-STATIC_URL = 'static/'
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
+# Static files
+STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-#library path 지정
+# library path 지정
 GDAL_LIBRARY_PATH = "C:/OSGeo4W/bin/gdal311.dll"
 
-#vworld key 지정
-VWORLD_KEY = os.getenv("VWORLD_KEY")
-
 # (선택) .env를 쓰실 거면 아래 2줄 추가
-from dotenv import load_dotenv
 load_dotenv(BASE_DIR / ".env")  # 프로젝트 루트의 .env 로드
+
+# vworld key 지정 (.env에 VWORLD_KEY=... 로 저장 권장)
+VWORLD_KEY = os.getenv("VWORLD_KEY")

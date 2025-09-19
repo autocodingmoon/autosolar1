@@ -1,215 +1,207 @@
-// script.js
+// static/main/script.js
+// Auto Solar – Leaflet + 필터 + GeoJSON 로딩
 (() => {
-  // 이미 초기화된 Leaflet 인스턴스가 있으면 안전하게 제거 (중복 실행 대비)
-  if (window.__leaflet_map__) {
-    try { window.__leaflet_map__.remove(); } catch (_) {}
-  }
-  const mapEl = document.getElementById('map');
-  if (!mapEl) { console.error('#map element not found'); return; }
-  if (mapEl._leaflet_id) {
-    try { mapEl._leaflet_id = null; mapEl.innerHTML = ''; } catch (_) {}
-  }
+  'use strict';
 
-  // 1) 지도 초기화
-  const mapCenter = { lat: 37.5665, lng: 126.9780 }; // 서울 시청 근처
-  const map = L.map('map', { zoomControl: false }).setView([mapCenter.lat, mapCenter.lng], 13);
-  window.__leaflet_map__ = map; // 전역 보관(다음 실행 때 remove용)
-  L.control.zoom({ position: 'topright' }).addTo(map);
+  // ---------- 공통 유틸 ----------
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const debounce = (fn, wait = 250) => {
+    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+  };
+  const getCheckedValues = (selector) => $$(selector).filter(el => el.checked).map(el => el.value);
+  const getBboxString = (map) => {
+    const b = map.getBounds();
+    return [b.getWest().toFixed(6), b.getSouth().toFixed(6), b.getEast().toFixed(6), b.getNorth().toFixed(6)].join(',');
+  };
 
-  // 오버레이 전용 pane(타일 위로 확실히 올림)
-  map.createPane('vec');
-  map.getPane('vec').style.zIndex = 650; // tile(200) < overlay(400) < vec(650)
-
-  // 2) Vworld 타일 레이어 (settings.py → map.html → window.VWORLD_KEY 사용)
-  const vkey = (typeof window !== 'undefined' && window.VWORLD_KEY) ? window.VWORLD_KEY : "";
-
-  let vBase, vSatellite, vHybrid;
-  if (vkey) {
-    vBase = L.tileLayer(
-      `https://api.vworld.kr/req/wmts/1.0.0/${vkey}/Base/{z}/{y}/{x}.png`,
-      { maxZoom: 19, attribution: "&copy; Vworld" }
-    ).addTo(map);
-    vSatellite = L.tileLayer(
-      `https://api.vworld.kr/req/wmts/1.0.0/${vkey}/Satellite/{z}/{y}/{x}.jpeg`,
-      { maxZoom: 19, attribution: "&copy; Vworld" }
-    );
-    vHybrid = L.tileLayer(
-      `https://api.vworld.kr/req/wmts/1.0.0/${vkey}/Hybrid/{z}/{y}/{x}.png`,
-      { maxZoom: 19, attribution: "&copy; Vworld" }
-    );
-  } else {
-    // 키가 없으면 공개 소스 맵으로 대체
-    vBase = L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: "© OpenStreetMap" }
-    ).addTo(map);
-    vSatellite = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { maxZoom: 19, attribution: "Tiles © Esri" }
-    );
-    vHybrid = vSatellite;
-  }
-
-  // 베이스맵 레이어 컨트롤
-  L.control.layers(
-    {
-      "기본지도 (Base)": vBase,
-      "항공사진 (Satellite)": vSatellite,
-      "하이브리드 (Hybrid)": vHybrid,
-    },
-    null,
-    { position: 'topleft', collapsed: false }
-  ).addTo(map);
-
-  // 3) 표시용 레이어
-  const markerLayer = L.layerGroup().addTo(map);
-  const parcelsLayer = L.geoJSON(null, {
-    style: { color: '#2e7d32', weight: 1, fillOpacity: 0.2 }
+  // ---------- 지도 초기화 ----------
+  const map = L.map('map', { center: [36.5, 127.8], zoom: 10, preferCanvas: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
   }).addTo(map);
 
-  // DB 오버레이 레이어 (체크되면 지도에 올림)
-  const roadLayer = L.geoJSON(null, {
-    pane: 'vec',
-    style: { color: '#ff3b30', weight: 4, opacity: 1 } // 굵게/선명
-  });
-  const yongdoLayer = L.geoJSON(null, {
-    pane: 'vec',
-    style: { color: '#006400', weight: 2, fillColor: '#3CB371', fillOpacity: 0.4, opacity: 1 }
-  });
-
-  // 4) 사이드바 버튼 토글
-  document.querySelectorAll('.nav-btn').forEach(btn => {
+  // ---------- 패널 토글 ----------
+  $$('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const panel = document.getElementById(btn.dataset.target);
-      panel.classList.toggle('active');
+      const id = btn.getAttribute('data-target');
+      const panel = document.getElementById(id);
+      if (!panel) return;
+      const open = panel.classList.toggle('active');
+      if (open) $$('.panel').forEach(p => p !== panel && p.classList.remove('active'));
     });
   });
 
-  // 현재 화면 BBOX → ?bbox=서,남,동,북
-  function bboxQS() {
-    const b = map.getBounds();
-    return `?bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`;
-  }
+  // ---------- 검색(Vworld 프록시) ----------
+  const addrInput = $('#addr-input');
+  const btnSearch = $('#btn-search');
+  let searchMarker = null;
 
-  // 먼저 BBOX로 요청, 0건이면 전체로 재시도 후 표시/줌
-  async function fetchAndAdd(url, layer, tryBbox = true) {
-    const fullUrl = url + (tryBbox ? bboxQS() : '');
-    let res;
+  async function geocodeAndMove() {
+    const q = addrInput?.value?.trim();
+    if (!q) return;
     try {
-      res = await fetch(fullUrl, { cache: 'no-store' });
-    } catch (e) {
-      console.error('[fetch] network error', e);
-      alert('데이터 요청 중 네트워크 오류가 발생했습니다.');
-      return;
-    }
-    if (!res.ok) {
-      console.error('[fetch] http error', res.status, fullUrl);
-      alert('데이터 요청에 실패했습니다.');
-      return;
-    }
-    const j = await res.json();
-    const n = (j && j.features) ? j.features.length : 0;
-    console.log('[fetch]', fullUrl, 'features:', n);
-
-    layer.clearLayers();
-
-    if (n > 0) {
-      layer.addData(j);
-      try { layer.bringToFront && layer.bringToFront(); } catch (_) {}
-      const lb = layer.getBounds();
-      if (lb && lb.isValid()) map.fitBounds(lb, { maxZoom: 13 });
-      return;
-    }
-    if (tryBbox) return fetchAndAdd(url, layer, false);
-    alert('표시할 데이터가 없습니다.');
-  }
-
-  // 5) (임시) 필지 로드
-  async function loadParcels({ lat, lng, radius = 1000 }) {
-    console.log(`[loadParcels] lat=${lat}, lng=${lng}, radius=${radius}`);
-  }
-
-  // 6) 주소 지오코딩 + 이동/표기
-  async function geocodeAndMove(query) {
-    if (!query) return;
-    let type = "ROAD";
-    if (/\d+-\d+/.test(query) || /동|리/.test(query)) type = "PARCEL";
-
-    try {
-      const url = `/api/geocode/?q=${encodeURIComponent(query)}&type=${type}`;
-      const res = await fetch(url);
-      const data = await res.json();
-
-      console.log("[geocode] raw response:", data);
-
-      if (!data.response || data.response.status !== "OK" || !data.response.result) {
-        alert("검색 결과가 없습니다. 주소를 다시 확인해 주세요.");
+      const res = await fetch(`/api/geocode/?q=${encodeURIComponent(q)}&type=ROAD`);
+      if (!res.ok) {
+        console.error('[geocode] http', res.status, await res.text().catch(() => ''));
+        alert('주소 검색 실패(HTTP ' + res.status + ')');
         return;
       }
+      const j = await res.json();
+      const pt = j?.response?.result?.point;
+      if (j?.status !== 'OK' || !pt) { alert('좌표를 찾지 못했습니다.'); return; }
+      const lat = Number(pt.y), lon = Number(pt.x);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return alert('좌표 형식 오류');
+      if (searchMarker) map.removeLayer(searchMarker);
+      searchMarker = L.marker([lat, lon]).addTo(map);
+      map.setView([lat, lon], 15);
+    } catch (err) {
+      console.error('[geocode] error', err);
+      alert('주소 검색 중 오류');
+    }
+  }
+  if (btnSearch) btnSearch.addEventListener('click', geocodeAndMove);
+  if (addrInput) addrInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') geocodeAndMove(); });
 
-      let result = data.response.result;
-      if (Array.isArray(result)) {
-        if (result.length === 0) { alert("검색 결과가 없습니다."); return; }
-        result = result[0];
+  // ---------- 레이어들 ----------
+  const styleLine = { weight: 1, opacity: 0.8 };
+  const stylePoly = { weight: 0.8, opacity: 0.7, fillOpacity: 0.15 };
+
+  let roadLayer  = L.geoJSON(null, { style: styleLine });
+  let yongdoLayer = L.geoJSON(null, { style: stylePoly });
+
+  // 소유정보(지목/소유자)
+  const jimokColor = (jm) => {
+    switch (jm) {
+      case '전': return '#1f77b4';
+      case '답': return '#2ca02c';
+      case '과수원': return '#ff7f0e';
+      case '잡종지': return '#9467bd';
+      case '목장용지': return '#8c564b';
+      case '염전': return '#e377c2';
+      case '양어장': return '#7f7f7f';
+      default: return '#3182bd';
+    }
+  };
+  let ownerLayer = L.geoJSON(null, {
+    style: (f) => ({ ...stylePoly, color: jimokColor(f?.properties?.a20) }),
+    onEachFeature: (f, layer) => {
+      const p = f?.properties || {};
+      layer.bindPopup(
+        `
+        <div style="font-size:12px;line-height:1.4">
+          <div><b>지목</b>: ${p.a20 ?? ''}</div>
+          <div><b>소유자</b>: ${p.a8 ?? ''}</div>
+          <div><b>gid</b>: ${p.gid ?? ''}</div>
+        </div>
+        `.trim()
+      );
+    }
+  });
+
+  // ✅ 새로 추가: jimok(기타) 레이어 (붉은색 폴리곤)
+  const styleJimok = { color: '#ff0000', weight: 1.2, opacity: 0.95, fillOpacity: 0.15 };
+  let jimokLayer = L.geoJSON(null, { style: styleJimok });
+
+  // AbortControllers
+  let ctlRoad = null, ctlYongdo = null, ctlOwner = null, ctlJimok = null;
+
+  // ---------- 로더들 ----------
+  async function loadRoad() {
+    if (!$('#chk-road')?.checked) { if (map.hasLayer(roadLayer)) map.removeLayer(roadLayer); return; }
+    if (ctlRoad) ctlRoad.abort(); ctlRoad = new AbortController();
+    const q = new URLSearchParams({ bbox: getBboxString(map) });
+    try {
+      const res = await fetch(`/geojson/road?${q.toString()}`, { signal: ctlRoad.signal });
+      if (!res.ok) return console.error('[road] http', res.status);
+      const gj = await res.json();
+      if (map.hasLayer(roadLayer)) map.removeLayer(roadLayer);
+      roadLayer = L.geoJSON(gj, { style: styleLine }).addTo(map);
+    } catch (e) { if (e.name !== 'AbortError') console.error('[road]', e); }
+  }
+
+  async function loadYongdo() {
+    if (!$('#chk-yongdo')?.checked) { if (map.hasLayer(yongdoLayer)) map.removeLayer(yongdoLayer); return; }
+    if (ctlYongdo) ctlYongdo.abort(); ctlYongdo = new AbortController();
+    const q = new URLSearchParams({ bbox: getBboxString(map) });
+    try {
+      const res = await fetch(`/geojson/yongdo?${q.toString()}`, { signal: ctlYongdo.signal });
+      if (!res.ok) return console.error('[yongdo] http', res.status);
+      const gj = await res.json();
+      if (map.hasLayer(yongdoLayer)) map.removeLayer(yongdoLayer);
+      yongdoLayer = L.geoJSON(gj, { style: stylePoly }).addTo(map);
+    } catch (e) { if (e.name !== 'AbortError') console.error('[yongdo]', e); }
+  }
+
+  async function loadOwner() {
+    if (ctlOwner) ctlOwner.abort(); ctlOwner = new AbortController();
+    const jmArray = getCheckedValues('#grp-jimok input.jm');
+    const ownArray = getCheckedValues('#grp-owner input.own');
+    const q = new URLSearchParams({ bbox: getBboxString(map) });
+    jmArray.forEach(v => q.append('jm', v));
+    ownArray.forEach(v => q.append('own', v));
+    try {
+      const res = await fetch(`/geojson/owner?${q.toString()}`, { signal: ctlOwner.signal });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) return console.error('[owner] http', res.status, payload?.error);
+      if (map.hasLayer(ownerLayer)) map.removeLayer(ownerLayer);
+      ownerLayer = L.geoJSON(payload, {
+        style: (f) => ({ ...stylePoly, color: jimokColor(f?.properties?.a20) }),
+        onEachFeature: (f, layer) => {
+          const p = f?.properties || {};
+          layer.bindPopup(
+            `
+            <div style="font-size:12px;line-height:1.4">
+              <div><b>지목</b>: ${p.a20 ?? ''}</div>
+              <div><b>소유자</b>: ${p.a8 ?? ''}</div>
+              <div><b>gid</b>: ${p.gid ?? ''}</div>
+            </div>
+            `.trim()
+          );
+        }
+      }).addTo(map);
+    } catch (e) { if (e.name !== 'AbortError') console.error('[owner]', e); }
+  }
+
+  // ✅ 새로 추가: jimok(기타) 로더
+  async function loadJimok() {
+    const chk = $('#chk-jimok');
+    if (!chk || !chk.checked) {
+      if (map.hasLayer(jimokLayer)) map.removeLayer(jimokLayer);
+      return;
+    }
+    if (ctlJimok) ctlJimok.abort(); ctlJimok = new AbortController();
+    const q = new URLSearchParams({ bbox: getBboxString(map) });
+    try {
+      const res = await fetch(`/geojson/jimok?${q.toString()}`, { signal: ctlJimok.signal });
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        console.error('[jimok] http', res.status, t);
+        return;
       }
-
-      const latNum = parseFloat(result.point.y);
-      const lonNum = parseFloat(result.point.x);
-
-      map.flyTo([latNum, lonNum], 17, { duration: 0.8 });
-      markerLayer.clearLayers();
-      L.marker([latNum, lonNum]).addTo(markerLayer)
-        .bindPopup(`<b>검색 결과</b><br>${data.response.refined?.text || ''}`).openPopup();
-
-      loadParcels({ lat: latNum, lng: lonNum, radius: 1000 });
+      const gj = await res.json();
+      if (map.hasLayer(jimokLayer)) map.removeLayer(jimokLayer);
+      jimokLayer = L.geoJSON(gj, { style: styleJimok }).addTo(map);
     } catch (e) {
-      console.error('[geocode] error:', e);
-      alert('Vworld 지오코딩 중 오류가 발생했습니다.');
+      if (e.name !== 'AbortError') console.error('[jimok] fetch error', e);
     }
   }
 
-  // 7) 검색 버튼 & 엔터 처리
-  const addrInput = document.getElementById('addr-input');
-  document.getElementById('btn-search').addEventListener('click', () => {
-    geocodeAndMove(addrInput.value.trim());
-  });
-  addrInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      geocodeAndMove(addrInput.value.trim());
-    }
-  });
+  // ---------- 이벤트 바인딩 ----------
+  $('#chk-road')?.addEventListener('change', loadRoad);
+  $('#chk-yongdo')?.addEventListener('change', loadYongdo);
+  $('#chk-jimok')?.addEventListener('change', loadJimok); // ✅ 추가
 
-  // 필터 박스 체크박스 연동
-  const chkRoad = document.getElementById('chk-road');
-  const chkYong = document.getElementById('chk-yongdo');
+  $$('#grp-jimok input.jm').forEach(el => el.addEventListener('change', debounce(loadOwner, 150)));
+  $$('#grp-owner input.own').forEach(el => el.addEventListener('change', debounce(loadOwner, 150)));
 
-  chkRoad?.addEventListener('change', () => {
-    if (chkRoad.checked) {
-      roadLayer.addTo(map);
-      fetchAndAdd('/geojson/road', roadLayer, true);
-    } else {
-      map.removeLayer(roadLayer);
-      roadLayer.clearLayers();
-    }
-  });
+  map.on('moveend', debounce(() => {
+    if ($('#chk-road')?.checked)  loadRoad();
+    if ($('#chk-yongdo')?.checked) loadYongdo();
+    if ($('#chk-jimok')?.checked)  loadJimok();  // ✅ 추가
+    loadOwner();
+  }, 250));
 
-  chkYong?.addEventListener('change', () => {
-    if (chkYong.checked) {
-      yongdoLayer.addTo(map);
-      fetchAndAdd('/geojson/yongdo', yongdoLayer, true);
-    } else {
-      map.removeLayer(yongdoLayer);
-      yongdoLayer.clearLayers();
-    }
-  });
-
-  // (선택) 지도를 옮길 때 켜져 있는 레이어만 BBOX로 갱신
-  map.on('moveend', () => {
-    if (map.hasLayer(roadLayer))   fetchAndAdd('/geojson/road', roadLayer, true);
-    if (map.hasLayer(yongdoLayer)) fetchAndAdd('/geojson/yongdo', yongdoLayer, true);
-  });
-
-  // 8) 초기 호출 (필요 시 사용)
-  // loadParcels({ lat: mapCenter.lat, lng: mapCenter.lng, radius: 1000 });
+  // 최초 1회 기본 로드
+  loadOwner();
 })();

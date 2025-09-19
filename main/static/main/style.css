@@ -1,69 +1,70 @@
 html, body { margin:0; padding:0; height:100%; }
-    body { font-family: system-ui, Arial, sans-serif; }
+body { font-family: system-ui, Arial, sans-serif; }
 
-    /* 레이아웃: 좌측 사이드바 + 우측 지도 */
-    .app {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      height: 100vh;
-    }
+/* 레이아웃: 좌측 사이드바 + 우측 지도 */
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+}
 
-    /* 사이드바 */
-    #sidebar {
-      border-right: 1px solid #e5e7eb;
-      background: #fff;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 12px;
-    }
-    #sidebar h3 {
-      margin: 4px 0 12px;
-      font-size: 18px;
-    }
-    .nav-btn {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid #d1d5db;
-      background: #f9fafb;
-      border-radius: 8px;
-      cursor: pointer;
-      text-align: left;
-    }
-    .nav-btn:hover { background:#eef2ff; }
+/* 사이드바 */
+#sidebar {
+  border-right: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+#sidebar h3 {
+  margin: 4px 0 12px;
+  font-size: 18px;
+}
+.nav-btn {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.nav-btn:hover { background:#eef2ff; }
 
-    .panel {
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 10px;
-      display: none; /* 기본은 접힘 */
-      background: #fff;
-    }
-    .panel.active { display:block; }
+.panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  display: none; /* 기본은 접힘 */
+  background: #fff;
+}
+/* JS에서 .active를 토글함 */
+.panel.active { display:block; }
 
-    /* 검색 패널 내부 입력/버튼 */
-    .search-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .search-row input {
-      flex: 1;
-      padding: 8px 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-    }
-    .search-row button {
-      padding: 8px 12px;
-      border: 1px solid #4f46e5;
-      background: #4f46e5;
-      color: #fff;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+/* 검색 패널 내부 입력/버튼 */
+.search-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.search-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+.search-row button {
+  padding: 8px 12px;
+  border: 1px solid #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+}
 
-    /* 지도 영역 */
-    #map { width: 100%; height: 100%; }
+/* 지도 영역 */
+#map { width: 100%; height: 100%; }
 
-    /* 안내 텍스트(자리표시자) */
-    .placeholder { color:#6b7280; font-size: 14px; }
+/* 안내 텍스트(자리표시자) */
+.placeholder { color:#6b7280; font-size: 14px; }
