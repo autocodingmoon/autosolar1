@@ -2,18 +2,20 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # 페이지
     path("", views.map_view, name="map"),
     path("index/", views.index, name="index"),
     path("api/geocode/", views.vworld_geocode, name="vworld_geocode"),
 
-    # GeoJSON 엔드포인트
-    path("geojson/road",  views.geojson_road,  name="geojson_road"),
-    path("geojson/yongdo", views.geojson_yongdo, name="geojson_yongdo"),
-    path("geojson/owner", views.geojson_owner,  name="geojson_owner"),
-    # ✅ 새로 추가: jimok(기타)
-    path("geojson/jimok", views.geojson_jimok,  name="geojson_jimok"),
+    # MVT 타일
+    path("tiles/owner/<int:z>/<int:x>/<int:y>.pbf", views.OwnerTileView.as_view(),  name="tiles_owner"),
+    path("tiles/yongdo/<int:z>/<int:x>/<int:y>.pbf", views.YongdoTileView.as_view(), name="tiles_yongdo"),
+    path("tiles/road/<int:z>/<int:x>/<int:y>.pbf",   views.RoadTileView.as_view(),   name="tiles_road"),
+    path("tiles/jimok/<int:z>/<int:x>/<int:y>.pbf",  views.JimokTileView.as_view(),  name="tiles_jimok"),
 
-    # MVT
-    path("land/<int:z>/<int:x>/<int:y>.pbf", views.LandTileView.as_view(), name="land_tiles"),
-    path("land/tiles.json", views.LandTileJSON.as_view(), name="land_tilejson"),
+    # (선택) TileJSON
+    path("tiles/owner.json",  views.OwnerTileJSON.as_view(),  name="tiles_owner_json"),
+    path("tiles/yongdo.json", views.YongdoTileJSON.as_view(), name="tiles_yongdo_json"),
+    path("tiles/road.json",   views.RoadTileJSON.as_view(),   name="tiles_road_json"),
+    path("tiles/jimok.json",  views.JimokTileJSON.as_view(),  name="tiles_jimok_json"),
 ]

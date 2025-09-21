@@ -1,24 +1,97 @@
 # main/vector_layers.py
+from django.db.models import Value, TextField
 from vectortiles import VectorLayer
-from django.db.models import F
-from django.db.models.functions import Length, Substr
-from .models import LandCategory
+from .models import (
+    OwnerSubdiv, OwnerS30, OwnerRaw,
+    Yongdo, YongdoS30,
+    Road, RoadS10,
+    Jimok, JimokS30
+)
 
-class LandCategoryVectorLayer(VectorLayer):
-    """
-    MVT 타일에 실릴 레이어 정의
-    """
-    model = LandCategory
-    id = "landcategory"           # 타일 내부의 레이어 이름
-    geom_field = "geom"           # 기본값이 geom이면 생략 가능
-    min_zoom = 12                 # 너무 낮은 줌에서 과도한 데이터 방지 (상황 맞게 조정)
+def _norm_list(values):
+    return [v.strip() for v in values if v and str(v).strip()]
 
-    # @property 대신 쿼리셋 annotate로 타일 속성 제공(성능/호환성 Good)
-    queryset = LandCategory.objects.annotate(
-        jibun_len=Length("jibun"),
-        jimok=Substr("jibun", F("jibun_len"), 1),           # 마지막 글자
-        jibun_no=Substr("jibun", 1, F("jibun_len") - 1),    # 마지막 글자 제외
-    )
+# ===== Owner (지목/소유자 필터 적용) ============================================
+class OwnerVectorLayer(VectorLayer):
+    id = "owner"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid", "a2", "a5", "a20", "a8")  # 지목/소유자 확인용 속성만 싣기
 
-    # 타일에 포함할 속성들 (필요에 맞게 가감)
-    tile_fields = ("pnu", "jibun", "jibun_no", "jimok", "bchk", "col_adm_se", "region")
+    # ★ 호출 패턴을 모두 수용 (request,bbox,zoom) 또는 인자 없음
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        # 1) 줌에 따라 테이블 선택(있으면 단순화본 우선)
+        if zoom is None:
+            zoom = getattr(self, "zoom", None)
+
+        if zoom is not None and zoom <= 11 and OwnerS30:
+            qs = OwnerS30.objects.all()
+        elif OwnerSubdiv:
+            qs = OwnerSubdiv.objects.all()
+        else:
+            qs = OwnerRaw.objects.all()
+
+        # 2) request 확보
+        if request is None:
+            request = getattr(self, "request", None)
+
+        # 3) 필터 적용 (jm: 지목, own: 소유자)
+        if request is not None:
+            jm  = _norm_list(request.GET.getlist("jm"))
+            own = _norm_list(request.GET.getlist("own"))
+
+            if jm:
+                qs = qs.filter(a20__in=jm)
+            if own:
+                qs = qs.filter(a8__in=own)
+        
+         # 4) a2/a5가 없는 단순화/분할 테이블에 대해 빈 필드 annotate
+        model_fields = {f.name for f in qs.model._meta.get_fields()}
+        if "a2" not in model_fields:
+            qs = qs.annotate(a2=Value("", output_field=TextField()))
+        if "a5" not in model_fields:
+            qs = qs.annotate(a5=Value("", output_field=TextField()))
+
+        return qs
+
+# ===== Yongdo ================================================================
+class YongdoVectorLayer(VectorLayer):
+    id = "yongdo"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        if zoom is None:
+            zoom = getattr(self, "zoom", None)
+        if zoom is not None and zoom <= 11 and YongdoS30:
+            return YongdoS30.objects.all()
+        return Yongdo.objects.all()
+
+# ===== Road ==================================================================
+class RoadVectorLayer(VectorLayer):
+    id = "road"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        if zoom is None:
+            zoom = getattr(self, "zoom", None)
+        if zoom is not None and zoom <= 11 and RoadS10:
+            return RoadS10.objects.all()
+        return Road.objects.all()
+
+# ===== Jimok (기타) — 필터 무관, 항상 전체 ====================================
+class JimokVectorLayer(VectorLayer):
+    id = "jimok"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid", "pnu", "jibun", "a20")
+
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        if zoom is None:
+            zoom = getattr(self, "zoom", None)
+        if zoom is not None and zoom <= 11 and JimokS30:
+            return JimokS30.objects.all()
+        return Jimok.objects.all()
