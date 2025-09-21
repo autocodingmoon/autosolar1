@@ -68,3 +68,24 @@ body { font-family: system-ui, Arial, sans-serif; }
 
 /* 안내 텍스트(자리표시자) */
 .placeholder { color:#6b7280; font-size: 14px; }
+
+/* === Basemap/Vendor 스위처(지도 좌상단) === */
+.leaflet-top.leaflet-left .basemap-control {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  font-size: 13px;
+  line-height: 1.4;
+  min-width: 190px;
+}
+.basemap-control .row { display: flex; gap: 8px; margin: 4px 0; }
+.basemap-control label {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #e5e7eb; background:#fafafa;
+}
+.basemap-control input[type="checkbox"] { transform: translateY(1px); }
+.basemap-control .hint { color:#6b7280; font-size:12px; margin-top:4px; }
+

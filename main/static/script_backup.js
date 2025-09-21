@@ -10,141 +10,10 @@
   // ---------- 지도 ----------
   const map = L.map('map', { center:[36.5,127.8], zoom:10, preferCanvas:true });
 
-  // ====== 베이스맵 소스 & 선택 상태 ======
-  const VWORLD_KEY = window.VWORLD_KEY || ""; // map.html에서 주입됨
-
-  // OSM 일반 (EPSG:3857 XYZ)
-  const makeOsmBase = () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '&copy; OpenStreetMap'
-  });
-
-  // VWorld 일반(Base) WMTS (EPSG:3857 XYZ)
-  const makeVworldBase = () => L.tileLayer(
-    `/vwtiles/Base/{z}/{y}/{x}.png`,
-    { maxZoom: 19, attribution: '&copy; VWorld', crossOrigin: true }
-  );
-
-      
-  // VWorld 위성(Satellite) WMTS (EPSG:3857 XYZ)
-  const makeVworldSat = () => L.tileLayer(
-    `/vwtiles/Satellite/{z}/{y}/{x}.jpeg`,
-    { maxZoom: 19, attribution: '&copy; VWorld', crossOrigin: true }
-  );
-
-  // 모드: 'OSM_BASE' | 'VW_BASE' | 'VW_SAT'
-  let basemapMode = 'OSM_BASE';
-  let baseLayer = null;
-
-  function applyBasemap() {
-    let next;
-    if (basemapMode === 'OSM_BASE') next = makeOsmBase();
-    else if (basemapMode === 'VW_BASE') next = makeVworldBase();
-    else next = makeVworldSat(); // 'VW_SAT'
-
-    if (baseLayer && map.hasLayer(baseLayer)) map.removeLayer(baseLayer);
-    baseLayer = next.addTo(map);
-  }
-
-  // ---------- 좌상단 미니 컨트롤 (체크박스 3개, 배타 동작) ----------
-  const BasemapControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd: function() {
-      const div = L.DomUtil.create('div', 'bm-mini');
-      // 작은 박스 스타일(인라인)
-      Object.assign(div.style, {
-        background:'#fff', border:'1px solid #e5e7eb', borderRadius:'8px',
-        padding:'6px', boxShadow:'0 2px 6px rgba(0,0,0,.08)', fontSize:'12px'
-      });
-
-      const lblStyle = 'display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border:1px solid #e5e7eb;border-radius:6px;background:#fafafa;cursor:pointer;';
-
-      div.innerHTML = `
-        <div style="display:flex;gap:6px;">
-          <label style="${lblStyle}">
-            <input type="checkbox" id="bm-osm" checked> 일반(OSM)
-          </label>
-          <label style="${lblStyle}">
-            <input type="checkbox" id="bm-vw-base"> 일반(VWorld)
-          </label>
-          <label style="${lblStyle}">
-            <input type="checkbox" id="bm-vw-sat"> 위성(VWorld)
-          </label>
-        </div>
-      `;
-
-      L.DomEvent.disableClickPropagation(div);
-
-      const $osm = $('#bm-osm', div);
-      const $vwB = $('#bm-vw-base', div);
-      const $vwS = $('#bm-vw-sat', div);
-
-      // VWorld 키 없으면 조용히 비활성화
-      if (!VWORLD_KEY) {
-        $vwB.disabled = true; $vwS.disabled = true;
-        $vwB.parentElement.style.opacity = '0.5';
-        $vwS.parentElement.style.opacity = '0.5';
-        $vwB.parentElement.title = 'VWorld 키가 필요합니다';
-        $vwS.parentElement.title = 'VWorld 키가 필요합니다';
-      }
-
-      function setMode(mode) {
-        basemapMode = mode;
-        $osm.checked = (mode === 'OSM_BASE');
-        $vwB.checked = (mode === 'VW_BASE');
-        $vwS.checked = (mode === 'VW_SAT');
-        applyBasemap();
-      }
-
-      $osm.addEventListener('change', e => {
-        if (e.target.checked) setMode('OSM_BASE'); else $osm.checked = true;
-      });
-      $vwB.addEventListener('change', e => {
-        if (e.target.checked) {
-          if ($vwB.disabled) { $osm.checked = true; return; }
-          setMode('VW_BASE');
-        } else {
-          if (!$vwS.checked) { $osm.checked = true; setMode('OSM_BASE'); }
-        }
-      });
-      $vwS.addEventListener('change', e => {
-        if (e.target.checked) {
-          if ($vwS.disabled) { $osm.checked = true; return; }
-          setMode('VW_SAT');
-        } else {
-          if (!$vwB.checked) { $osm.checked = true; setMode('OSM_BASE'); }
-        }
-      });
-
-      return div;
-    }
-  });
-
-  // 컨트롤 추가
-  const bmCtrl = new BasemapControl();
-  map.addControl(bmCtrl);
-  // ➜ 줌 컨트롤 바로 오른쪽으로 이동 배치
-  (function placeRightOfZoom() {
-    // 줌 컨테이너
-    const zoomNode = map.zoomControl && map.zoomControl.getContainer
-      ? map.zoomControl.getContainer()
-      : document.querySelector('.leaflet-control-zoom');
-    const bmNode = bmCtrl.getContainer();
-    if (zoomNode && zoomNode.parentNode && bmNode) {
-      const corner = zoomNode.parentNode; // .leaflet-top.leaflet-left
-      // 같은 코너 컨테이너를 가로배치로 전환
-      corner.style.display = 'flex';
-      corner.style.flexDirection = 'row';
-      corner.style.alignItems = 'flex-start';
-      corner.style.gap = '6px';
-      // 줌 바로 다음에 우리 컨트롤 삽입
-      if (zoomNode.nextSibling !== bmNode) {
-        corner.insertBefore(bmNode, zoomNode.nextSibling);
-      }
-    }
-  })();
-
-  // 기본 베이스맵: OSM 일반
-  applyBasemap();
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
 
   // ---------- 사이드 패널 토글 ----------
   $$('.nav-btn').forEach(btn => {
@@ -296,5 +165,5 @@
   $$('#grp-jimok input.jm').forEach(el => el.addEventListener('change', debJm));
   $$('#grp-owner input.own').forEach(el => el.addEventListener('change', debOwn));
 
-  // VectorGrid는 영역 이동 시 타일을 자동 요청하므로 수동 재로딩 불필요.
+  // (참고) moveend에 대한 재로딩은 불필요. VectorGrid가 자동 요청.
 })();

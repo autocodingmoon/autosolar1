@@ -7,6 +7,9 @@ urlpatterns = [
     path("index/", views.index, name="index"),
     path("api/geocode/", views.vworld_geocode, name="vworld_geocode"),
 
+    # VWorld WMTS 프록시 ★
+    path("vwtiles/<str:layer>/<int:z>/<int:y>/<int:x>.<str:ext>", views.vworld_wmts_proxy, name="vworld_wmts_proxy"),
+
     # MVT 타일
     path("tiles/owner/<int:z>/<int:x>/<int:y>.pbf", views.OwnerTileView.as_view(),  name="tiles_owner"),
     path("tiles/yongdo/<int:z>/<int:x>/<int:y>.pbf", views.YongdoTileView.as_view(), name="tiles_yongdo"),

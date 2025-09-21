@@ -1,7 +1,7 @@
 # main/views.py
 from django.conf import settings
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest, HttpResponseServerError
 import requests
 
 # 캐시 데코레이터
@@ -66,18 +66,6 @@ def vworld_geocode(request):
 
 
 # main/views.py (발췌) — MVT 뷰들 정의 부분 위/근처에 추가
-
-class _BaseTile:
-    layer_classes = []
-    prefix_url = "tiles"
-
-    # ★ 레이어 인스턴스에 request를 주입
-    def get_layers(self):
-        layers = super().get_layers()
-        for lyr in layers:
-            setattr(lyr, "request", self.request)
-        return layers
-
 
 # ---------------------------------------------------------------------
 # MVT 타일 뷰 (+ 서버 캐시)
@@ -146,3 +134,34 @@ class JimokTileView(_BaseTile, MVTView):
 
 class JimokTileJSON(_BaseTile, TileJSONView):
     layer_classes = [JimokVectorLayer]
+
+@cache_page(60 * 5)  # 5분 캐시(원하면 조정)
+def vworld_wmts_proxy(request, layer, z, y, x, ext):
+    """
+    예: /vwtiles/Base/14/6755/14603.png
+        /vwtiles/Satellite/14/6755/14603.jpeg
+        /vwtiles/Hybrid/14/6755/14603.png
+    """
+    key = getattr(settings, "VWORLD_KEY", "")
+    if not key:
+        return HttpResponseServerError("VWORLD_KEY not set")
+
+    # layer/확장자 화이트리스트
+    LAYERS = {"Base", "Satellite", "Hybrid"}
+    EXTS = {"png", "jpeg"}
+    if layer not in LAYERS or ext not in EXTS:
+        return HttpResponseBadRequest("invalid layer/ext")
+
+    url = f"https://api.vworld.kr/req/wmts/1.0.0/{key}/{layer}/{z}/{y}/{x}.{ext}"
+    try:
+        r = requests.get(url, timeout=6)  # 필요시 proxies/headers 추가
+        # VWorld는 실패시에도 이미지(에러 텍스트 포함) 줄 때가 있어 상태코드만으로 판단 어려움
+        # 그대로 중계. content-type도 전달
+        resp = HttpResponse(r.content, status=r.status_code)
+        ctype = r.headers.get("Content-Type", "image/png")
+        resp["Content-Type"] = ctype
+        # 간단한 캐시 헤더
+        resp["Cache-Control"] = "public, max-age=300"
+        return resp
+    except Exception as e:
+        return HttpResponseServerError(str(e))

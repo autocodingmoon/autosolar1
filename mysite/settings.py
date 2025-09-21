@@ -93,4 +93,4 @@ GDAL_LIBRARY_PATH = "C:/OSGeo4W/bin/gdal311.dll"
 load_dotenv(BASE_DIR / ".env")  # 프로젝트 루트의 .env 로드
 
 # vworld key 지정 (.env에 VWORLD_KEY=... 로 저장 권장)
-VWORLD_KEY = os.getenv("VWORLD_KEY")
+VWORLD_KEY = os.getenv("VWORLD_KEY","")
