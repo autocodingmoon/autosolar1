@@ -3,6 +3,9 @@ from django.conf import settings
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest, HttpResponseServerError
 import requests
+# ★ 추가
+import json
+from django.db import connection
 
 # 캐시 데코레이터
 from django.utils.decorators import method_decorator
@@ -65,13 +68,9 @@ def vworld_geocode(request):
         return JsonResponse({"error": str(e)}, status=502)
 
 
-# main/views.py (발췌) — MVT 뷰들 정의 부분 위/근처에 추가
-
 # ---------------------------------------------------------------------
 # MVT 타일 뷰 (+ 서버 캐시)
 # ---------------------------------------------------------------------
-# main/views.py  (_BaseTile 교체)
-
 class _BaseTile:
     """
     공통 설정:
@@ -135,6 +134,10 @@ class JimokTileView(_BaseTile, MVTView):
 class JimokTileJSON(_BaseTile, TileJSONView):
     layer_classes = [JimokVectorLayer]
 
+
+# ---------------------------------------------------------------------
+# VWorld WMTS 프록시
+# ---------------------------------------------------------------------
 @cache_page(60 * 5)  # 5분 캐시(원하면 조정)
 def vworld_wmts_proxy(request, layer, z, y, x, ext):
     """
@@ -155,13 +158,98 @@ def vworld_wmts_proxy(request, layer, z, y, x, ext):
     url = f"https://api.vworld.kr/req/wmts/1.0.0/{key}/{layer}/{z}/{y}/{x}.{ext}"
     try:
         r = requests.get(url, timeout=6)  # 필요시 proxies/headers 추가
-        # VWorld는 실패시에도 이미지(에러 텍스트 포함) 줄 때가 있어 상태코드만으로 판단 어려움
-        # 그대로 중계. content-type도 전달
         resp = HttpResponse(r.content, status=r.status_code)
         ctype = r.headers.get("Content-Type", "image/png")
         resp["Content-Type"] = ctype
-        # 간단한 캐시 헤더
         resp["Cache-Control"] = "public, max-age=300"
         return resp
     except Exception as e:
         return HttpResponseServerError(str(e))
+
+
+# ---------------------------------------------------------------------
+# ★ 추가: 도로이격(시각) GeoJSON 엔드포인트
+#     - 최초 1회만 호출하여 클라이언트에 캐시
+#     - bbox는 EPSG:4326(지금 지도 뷰포트), 내부 계산은 5186(미터)
+#     - dist: 버퍼 거리(m)
+# ---------------------------------------------------------------------
+@cache_page(60 * 5)  # 필요시 조정 (5분 서버캐시)
+def road_setback_geojson(request):
+    """
+    GET params:
+      - dist: buffer 거리 (미터), 정수/실수 가능. 기본 50
+      - bbox: 'minx,miny,maxx,maxy' (EPSG:4326, 지도 뷰포트)
+
+    반환:
+      - GeoJSON FeatureCollection (Polygon/MultiPolygon)
+    """
+    dist_raw = request.GET.get("dist", "50")
+    bbox_str = request.GET.get("bbox")
+
+    # 파라미터 검증
+    try:
+        dist = float(dist_raw)
+        if dist <= 0:
+            raise ValueError
+    except Exception:
+        return JsonResponse({"error": "invalid dist"}, status=400)
+
+    if not bbox_str:
+        return JsonResponse({"type": "FeatureCollection", "features": []})
+
+    try:
+        minx, miny, maxx, maxy = map(float, bbox_str.split(","))
+    except Exception:
+        return JsonResponse({"error": "invalid bbox"}, status=400)
+
+    # 실제 도로 테이블명 (사용자 환경에 맞춘 실제 테이블)
+    # 예시: filter."3.4_road_lsmd_cont_ui101_44_202508"
+    ROAD_TABLE = 'filter."3.4_road_lsmd_cont_ui101_44_202508"'
+
+    # 성능 고려:
+    #  - bbox와 교차하는 선형만 선별
+    #  - 5186(SRID: meter)에서 ST_Buffer
+    #  - 필요시 ST_UnaryUnion으로 폴리곤 합치기(옵션)
+    sql = f"""
+        WITH bbox AS (
+          SELECT ST_Transform(
+                   ST_MakeEnvelope(%s, %s, %s, %s, 4326),
+                   5186
+                 ) AS g
+        ),
+        cand AS (
+          SELECT r.gid, r.geom
+          FROM {ROAD_TABLE} AS r, bbox
+          WHERE ST_Intersects(r.geom, bbox.g)
+        ),
+        buf AS (
+          SELECT
+            gid,
+            ST_Buffer(geom, %s) AS g   -- 5186에서 m 단위 버퍼
+          FROM cand
+        )
+        SELECT gid,
+               ST_AsGeoJSON(
+                 ST_Transform(g, 4326)
+               ) AS geojson
+        FROM buf
+    """
+
+    features = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute(sql, [minx, miny, maxx, maxy, dist])
+            rows = cur.fetchall()
+            for gid, gj in rows:
+                if not gj:
+                    continue
+                geom = json.loads(gj)
+                features.append({
+                    "type": "Feature",
+                    "properties": {"gid": gid, "dist": dist},
+                    "geometry": geom
+                })
+    except Exception as e:
+        return JsonResponse({"error": f"DB error: {e}"}, status=500)
+
+    return JsonResponse({"type": "FeatureCollection", "features": features})

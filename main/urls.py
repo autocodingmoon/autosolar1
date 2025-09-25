@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path 
 from . import views
 
 urlpatterns = [
@@ -21,4 +21,7 @@ urlpatterns = [
     path("tiles/yongdo.json", views.YongdoTileJSON.as_view(), name="tiles_yongdo_json"),
     path("tiles/road.json",   views.RoadTileJSON.as_view(),   name="tiles_road_json"),
     path("tiles/jimok.json",  views.JimokTileJSON.as_view(),  name="tiles_jimok_json"),
+
+    # ✅ 도로이격(시각) GeoJSON — 슬래시 유무 모두 허용
+    re_path(r'^geojson/road_setback/?$', views.road_setback_geojson, name='road_setback_geojson'),
 ]

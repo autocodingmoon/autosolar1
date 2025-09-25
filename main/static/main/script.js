@@ -24,7 +24,6 @@
     { maxZoom: 19, attribution: '&copy; VWorld', crossOrigin: true }
   );
 
-      
   // VWorld 위성(Satellite) WMTS (EPSG:3857 XYZ)
   const makeVworldSat = () => L.tileLayer(
     `/vwtiles/Satellite/{z}/{y}/{x}.jpeg`,
@@ -45,12 +44,11 @@
     baseLayer = next.addTo(map);
   }
 
-  // ---------- 좌상단 미니 컨트롤 (체크박스 3개, 배타 동작) ----------
+  // ---------- 좌상단 미니 컨트롤 ----------
   const BasemapControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
       const div = L.DomUtil.create('div', 'bm-mini');
-      // 작은 박스 스타일(인라인)
       Object.assign(div.style, {
         background:'#fff', border:'1px solid #e5e7eb', borderRadius:'8px',
         padding:'6px', boxShadow:'0 2px 6px rgba(0,0,0,.08)', fontSize:'12px'
@@ -78,7 +76,6 @@
       const $vwB = $('#bm-vw-base', div);
       const $vwS = $('#bm-vw-sat', div);
 
-      // VWorld 키 없으면 조용히 비활성화
       if (!VWORLD_KEY) {
         $vwB.disabled = true; $vwS.disabled = true;
         $vwB.parentElement.style.opacity = '0.5';
@@ -119,31 +116,27 @@
     }
   });
 
-  // 컨트롤 추가
+  // 컨트롤 추가 + 오른쪽 배치
   const bmCtrl = new BasemapControl();
   map.addControl(bmCtrl);
-  // ➜ 줌 컨트롤 바로 오른쪽으로 이동 배치
   (function placeRightOfZoom() {
-    // 줌 컨테이너
     const zoomNode = map.zoomControl && map.zoomControl.getContainer
       ? map.zoomControl.getContainer()
       : document.querySelector('.leaflet-control-zoom');
     const bmNode = bmCtrl.getContainer();
     if (zoomNode && zoomNode.parentNode && bmNode) {
-      const corner = zoomNode.parentNode; // .leaflet-top.leaflet-left
-      // 같은 코너 컨테이너를 가로배치로 전환
+      const corner = zoomNode.parentNode;
       corner.style.display = 'flex';
       corner.style.flexDirection = 'row';
       corner.style.alignItems = 'flex-start';
       corner.style.gap = '6px';
-      // 줌 바로 다음에 우리 컨트롤 삽입
       if (zoomNode.nextSibling !== bmNode) {
         corner.insertBefore(bmNode, zoomNode.nextSibling);
       }
     }
   })();
 
-  // 기본 베이스맵: OSM 일반
+  // 기본 베이스맵
   applyBasemap();
 
   // ---------- 사이드 패널 토글 ----------
@@ -205,7 +198,7 @@
     });
   }
 
-  // ---------- 체크박스 값 수집 ----------
+  // ---------- 체크값 수집 ----------
   const getCheckedVals = (sel) => $$(sel).filter(el=>el.checked).map(el=>el.value);
 
   // ---------- 레이어 핸들 ----------
@@ -213,15 +206,15 @@
   let vgOwn = null;   // 소유자(초록)
   let vgYongdo = null, vgRoad = null, vgJimok = null;
 
-  // ---------- 쿼리스트링 생성 ----------
+  // ---------- 쿼리스트링 ----------
   const qs = (pairs) => {
     const parts = [];
-    Object.entries(pairs).forEach(([k, vals]) => (vals||[]).forEach(v => parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`)));
+    Object.entries(pairs).forEach(([k, vals]) => (Array.isArray(vals)?vals:[vals]).filter(Boolean).forEach(v => parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`)));
     parts.push('_t=' + Date.now()); // 캐시 무효화
     return '?' + parts.join('&');
   };
 
-  // ---------- 지목(파랑) 레이어 로딩 ----------
+  // ---------- 지목(파랑) ----------
   function refreshJm() {
     const jm = getCheckedVals('#grp-jimok input.jm');
     if (vgJm && map.hasLayer(vgJm)) { map.removeLayer(vgJm); vgJm = null; }
@@ -231,14 +224,14 @@
       maxNativeZoom: 22,
       interactive: true,
       vectorTileLayerStyles: {
-        owner: { fill:true, fillOpacity:0.2, weight:0.8, color:'#2563eb' } // 파랑
+        owner: { fill:true, fillOpacity:0.2, weight:0.8, color:'#2563eb' }
       }
     }).addTo(map);
 
     bindHoverTooltip(vgJm);
   }
 
-  // ---------- 소유자(초록) 레이어 로딩 ----------
+  // ---------- 소유자(초록) ----------
   function refreshOwn() {
     const own = getCheckedVals('#grp-owner input.own');
     if (vgOwn && map.hasLayer(vgOwn)) { map.removeLayer(vgOwn); vgOwn = null; }
@@ -248,14 +241,14 @@
       maxNativeZoom: 22,
       interactive: true,
       vectorTileLayerStyles: {
-        owner: { fill:true, fillOpacity:0.25, weight:0.8, color:'#16a34a' } // 초록
+        owner: { fill:true, fillOpacity:0.25, weight:0.8, color:'#16a34a' }
       }
     }).addTo(map);
 
     bindHoverTooltip(vgOwn);
   }
 
-  // ---------- 기타 토글 레이어(그대로 유지) ----------
+  // ---------- 기타 토글 레이어 ----------
   function addYongdo(){
     vgYongdo = L.vectorGrid.protobuf(`/tiles/yongdo/{z}/{x}/{y}.pbf`, {
       maxNativeZoom:22, interactive:false,
@@ -285,16 +278,182 @@
     if (layerRefName==='vgJimok') vgJimok=null;
   }
 
-  // 체크박스: 켜면 추가 / 끄면 제거
-  $('#chk-road')?.addEventListener('change', e => e.target.checked ? addRoad()  : removeIf('vgRoad'));
+  $('#chk-road')?.addEventListener('change', e => {
+    if (e.target.checked) {
+      addRoad();
+      // 도로 레이어 켜질 때, 시각화 셰이드 UI 상태도 재동기화
+      syncRoadSetbackUI();
+      // 체크돼 있고, 이미 셰이드가 활성화 중이라면 표시
+      if (roadSetbackEnabled && roadSetbackLayer) roadSetbackLayer.addTo(map);
+    } else {
+      removeIf('vgRoad');
+      // 도로 끄면 셰이드도 숨김
+      if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
+    }
+  });
   $('#chk-yongdo')?.addEventListener('change', e => e.target.checked ? addYongdo(): removeIf('vgYongdo'));
   $('#chk-jimok')?.addEventListener('change', e => e.target.checked ? addJimok() : removeIf('vgJimok'));
 
-  // ---------- 필터 이벤트(디바운스) ----------
   const debJm  = debounce(refreshJm, 150);
   const debOwn = debounce(refreshOwn, 150);
   $$('#grp-jimok input.jm').forEach(el => el.addEventListener('change', debJm));
   $$('#grp-owner input.own').forEach(el => el.addEventListener('change', debOwn));
 
-  // VectorGrid는 영역 이동 시 타일을 자동 요청하므로 수동 재로딩 불필요.
+  // =====================================================================
+  // [ROAD SETBACK GEOJSON] — 도로이격(시각) : GeoJSON을 "한 번만" 받아 캐시 후 토글
+  // =====================================================================
+
+  // 상태
+  let roadSetbackLayer = null;       // 회색 셰이딩 레이어(GeoJSON)
+  let roadSetbackLoaded = false;     // 한번이라도 로드했는지
+  let roadSetbackEnabled = false;    // 체크박스 상태
+  let roadSetbackLastDist = 50;      // 최초 로드 시 사용한 m값(표시용)
+
+  // API 호출: 현재 지도 bbox + dist(m)로 GeoJSON 1회 로드
+  async function loadRoadSetbackOnce(dist) {
+    if (roadSetbackLoaded && roadSetbackLayer) return; // 이미 로드됨
+    const b = map.getBounds();
+    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+    const url = `/geojson/road_setback${qs({ dist, bbox })}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const gj = await res.json();
+
+    // 기존 레이어 제거
+    if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
+
+    // 회색 셰이딩 스타일
+    roadSetbackLayer = L.geoJSON(gj, {
+      style: {
+        color: '#666',       // 외곽선
+        weight: 1,
+        fillColor: '#999',   // 채움
+        fillOpacity: 0.35
+      }
+    });
+
+    roadSetbackLoaded = true;
+    roadSetbackLastDist = dist;
+  }
+
+  // UI 삽입: "도로이격(시각)" 체크박스 + 거리 입력 + (옵션) 갱신 버튼
+  function insertRoadSetbackUI() {
+    const roadChk = document.getElementById('chk-road');
+    if (!roadChk) return;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+    wrap.innerHTML = `
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="chk-road-setback">
+        <span>도로이격(시각)</span>
+      </label>
+      <input type="number" id="road-setback-m" min="1" step="1" value="50"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <span>m</span>
+      <button id="btn-road-setback-reload"
+              style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;">
+        갱신
+      </button>
+      <small id="road-setback-hint" style="color:#64748b;"></small>
+    `;
+
+    const labelEl = roadChk.closest('label');
+    if (labelEl) labelEl.insertAdjacentElement('afterend', wrap);
+    else (roadChk.parentElement || document.getElementById('sidebar'))?.appendChild(wrap);
+
+    const cb = $('#chk-road-setback', wrap);
+    const inp = $('#road-setback-m', wrap);
+    const btn = $('#btn-road-setback-reload', wrap);
+    const hint = $('#road-setback-hint', wrap);
+
+    function setHint(text) { hint.textContent = text || ''; }
+
+    // 토글 동작: 처음 켤 때 한 번 로드 → 이후엔 보이기/숨기기만
+    cb.addEventListener('change', async () => {
+      roadSetbackEnabled = cb.checked;
+
+      if (!document.getElementById('chk-road')?.checked) {
+        // 도로 레이어가 꺼져 있으면 켜달라고 안내
+        cb.checked = false;
+        roadSetbackEnabled = false;
+        return alert('먼저 "도로" 레이어를 켜주세요.');
+      }
+
+      try {
+        if (roadSetbackEnabled) {
+          // 최초 ON에서만 서버 호출 (로드 안됐으면)
+          if (!roadSetbackLoaded) {
+            const dist = Math.max(1, parseInt(inp.value || '50', 10));
+            setHint('불러오는 중…');
+            await loadRoadSetbackOnce(dist);
+            setHint(`로드 완료 (${roadSetbackLastDist}m 기준, 이후 토글은 재요청 없음)`);
+          }
+          if (roadSetbackLayer && !map.hasLayer(roadSetbackLayer)) {
+            roadSetbackLayer.addTo(map);
+          }
+        } else {
+          if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) {
+            map.removeLayer(roadSetbackLayer);
+          }
+        }
+      } catch (e) {
+        console.error('[road setback]', e);
+        alert('도로이격(시각) 로드에 실패했습니다.');
+        setHint('');
+        cb.checked = false;
+        roadSetbackEnabled = false;
+      }
+    });
+
+    // (옵션) 수동 갱신: 거리 값을 바꾸고 누르면 "한 번 더" 서버에서 새로 받아 업데이트
+    btn.addEventListener('click', async () => {
+      try {
+        if (!document.getElementById('chk-road')?.checked) {
+          return alert('먼저 "도로" 레이어를 켜주세요.');
+        }
+        const dist = Math.max(1, parseInt(inp.value || '50', 10));
+        setHint('갱신 중…');
+        // 새 거리로 재로딩(이때만 다시 요청)
+        roadSetbackLoaded = false;
+        await loadRoadSetbackOnce(dist);
+        setHint(`로드 완료 (${roadSetbackLastDist}m 기준)`);
+        // 켜져 있으면 즉시 갱신 반영
+        if (roadSetbackEnabled && roadSetbackLayer) {
+          // 기존 레이어 제거 후 새 레이어 추가
+          if (map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
+          roadSetbackLayer.addTo(map);
+        }
+      } catch (e) {
+        console.error('[road setback reload]', e);
+        alert('도로이격(시각) 갱신에 실패했습니다.');
+        setHint('');
+      }
+    });
+
+    // 도로 체크박스와 동기화(도로 꺼지면 비활성)
+    function syncEnable() {
+      const roadOn = document.getElementById('chk-road')?.checked;
+      cb.disabled = !roadOn;
+      inp.disabled = !roadOn;
+      btn.disabled = !roadOn;
+      if (!roadOn) {
+        cb.checked = false;
+        roadSetbackEnabled = false;
+        if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
+      }
+    }
+    document.getElementById('chk-road')?.addEventListener('change', syncEnable);
+    window.syncRoadSetbackUI = syncEnable; // 위에서 호출하기 위해 노출
+    syncEnable();
+  }
+
+  // DOM 준비 후 UI 삽입
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', insertRoadSetbackUI);
+  } else {
+    insertRoadSetbackUI();
+  }
+
 })();
