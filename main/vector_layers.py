@@ -6,7 +6,8 @@ from .models import (
     Yongdo, YongdoS30,
     Road, RoadS10,
     Jimok, JimokS30,
-    ResiSetback,          # ✅ 추가: 주거이격 원본 테이블 매핑 모델
+    ResiSetback,
+    Nonglim, NongupJinheung, JayeonNogji, GaebalJingheung, NongupSeisanGiban,
 )
 
 def _norm_list(values):
@@ -107,3 +108,44 @@ class ResiVectorLayer(VectorLayer):
     def get_queryset(self, request=None, bbox=None, zoom=None):
         # 별도 필터 없음: 전체를 그대로 제공
         return ResiSetback.objects.all()
+        
+# 파일 하단 적절한 위치에 간단한 VectorLayer 5개 추가
+class NonglimVectorLayer(VectorLayer):
+    id = "nonglim"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        return Nonglim.objects.all()
+
+class NongupJinheungVectorLayer(VectorLayer):
+    id = "nongupjinheung"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        return NongupJinheung.objects.all()
+
+class JayeonNogjiVectorLayer(VectorLayer):
+    id = "jayeonnogji"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        return JayeonNogji.objects.all()
+
+class GaebalJingheungVectorLayer(VectorLayer):
+    id = "gaebaljingheung"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        return GaebalJingheung.objects.all()
+
+class NongupSeisanGibanVectorLayer(VectorLayer):
+    id = "nongupseisangiban"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        return NongupSeisanGiban.objects.all()

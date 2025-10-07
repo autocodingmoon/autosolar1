@@ -206,6 +206,8 @@
   let vgOwn = null;   // 소유자(초록)
   let vgYongdo = null, vgRoad = null, vgJimok = null;
   let vgResi = null;  // ✅ 주거이격(짙은 파랑)
+  // 파일 상단 레이어 핸들 선언부에 추가
+  let vgNonglim=null, vgNongupJin=null, vgJayeon=null, vgGaebal=null, vgNongupGiban=null;
 
   // ---------- 쿼리스트링 ----------
   const qs = (pairs) => {
@@ -279,8 +281,40 @@
     }).addTo(map);
   }
 
+    // ====== 추가 레이어 생성 함수들 (MVT) ======
+  function addNonglim(){        // 농림지역: 연두색
+    vgNonglim = L.vectorGrid.protobuf(`/tiles/nonglim/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{ nonglim:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#a3e635' } } // lime
+    }).addTo(map);
+  }
+  function addNongupJin(){      // 농업진흥구역: 회색
+    vgNongupJin = L.vectorGrid.protobuf(`/tiles/nongupjinheung/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{ nongupjinheung:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#6b7280' } } // gray
+    }).addTo(map);
+  }
+  function addJayeon(){         // 자연녹지지역: 초록색
+    vgJayeon = L.vectorGrid.protobuf(`/tiles/jayeonnogji/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{ jayeonnogji:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#22c55e' } } // green
+    }).addTo(map);
+  }
+  function addGaebal(){         // 개발진흥구역: 주황색
+    vgGaebal = L.vectorGrid.protobuf(`/tiles/gaebaljingheung/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{ gaebaljingheung:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#f97316' } } // orange
+    }).addTo(map);
+  }
+  function addNongupGiban(){    // 농업생산기반정비사업지역: 노랑색
+    vgNongupGiban = L.vectorGrid.protobuf(`/tiles/nongupseisangiban/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{ nongupseisangiban:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#eab308' } } // yellow
+    }).addTo(map);
+  }
+
   function removeIf(layerRefName){
-    const ref = { vgJm, vgOwn, vgYongdo, vgRoad, vgJimok, vgResi }[layerRefName];
+    const ref = { vgJm, vgOwn, vgYongdo, vgRoad, vgJimok, vgResi, vgNonglim, vgNongupJin, vgJayeon, vgGaebal, vgNongupGiban}[layerRefName];
     if (ref && map.hasLayer(ref)) map.removeLayer(ref);
     if (layerRefName==='vgJm') vgJm=null;
     if (layerRefName==='vgOwn') vgOwn=null;
@@ -288,6 +322,11 @@
     if (layerRefName==='vgRoad') vgRoad=null;
     if (layerRefName==='vgJimok') vgJimok=null;
     if (layerRefName==='vgResi') vgResi=null;
+    if (layerRefName==='vgNonglim') vgNonglim=null;
+    if (layerRefName==='vgNongupJin') vgNongupJin=null;
+    if (layerRefName==='vgJayeon') vgJayeon=null;
+    if (layerRefName==='vgGaebal') vgGaebal=null;
+    if (layerRefName==='vgNongupGiban') vgNongupGiban=null;
   }
 
   $('#chk-road')?.addEventListener('change', e => {
@@ -304,6 +343,14 @@
   $('#chk-jimok')?.addEventListener('change', e => e.target.checked ? addJimok() : removeIf('vgJimok'));
   // ✅ 추가: 주거이격 토글
   $('#chk-resi')?.addEventListener('change', e => e.target.checked ? addResi() : removeIf('vgResi'));
+    // ====== 체크박스 바인딩 ======
+  $('#chk-nonglim')?.addEventListener('change', e => e.target.checked ? addNonglim()     : removeIf('vgNonglim'));
+  $('#chk-nongupjin')?.addEventListener('change', e => e.target.checked ? addNongupJin() : removeIf('vgNongupJin'));
+  $('#chk-jayeon')?.addEventListener('change', e => e.target.checked ? addJayeon()      : removeIf('vgJayeon'));
+  $('#chk-gaebal')?.addEventListener('change', e => e.target.checked ? addGaebal()      : removeIf('vgGaebal'));
+  $('#chk-nongupgiban')?.addEventListener('change', e => e.target.checked ? addNongupGiban() : removeIf('vgNongupGiban'));
+
+
 
   const debJm  = debounce(refreshJm, 150);
   const debOwn = debounce(refreshOwn, 150);

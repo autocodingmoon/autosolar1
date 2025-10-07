@@ -17,7 +17,8 @@ from .vector_layers import (
     YongdoVectorLayer,
     RoadVectorLayer,
     JimokVectorLayer,
-    ResiVectorLayer,   # ✅ 추가
+    ResiVectorLayer, NonglimVectorLayer, NongupJinheungVectorLayer, JayeonNogjiVectorLayer,
+    GaebalJingheungVectorLayer, NongupSeisanGibanVectorLayer,   # ✅ 추가
 )
 
 # ---------------------------------------------------------------------
@@ -123,6 +124,38 @@ class ResiTileView(_BaseTile, MVTView):
 
 class ResiTileJSON(_BaseTile, TileJSONView):
     layer_classes = [ResiVectorLayer]
+
+# ---- 신규 타일 뷰 (캐시 10분 동일) ------------------------------------
+@method_decorator(cache_page(60 * 10), name='dispatch')
+class NonglimTileView(_BaseTile, MVTView):
+    layer_classes = [NonglimVectorLayer]
+class NonglimTileJSON(_BaseTile, TileJSONView):
+    layer_classes = [NonglimVectorLayer]
+
+@method_decorator(cache_page(60 * 10), name='dispatch')
+class NongupJinheungTileView(_BaseTile, MVTView):
+    layer_classes = [NongupJinheungVectorLayer]
+class NongupJinheungTileJSON(_BaseTile, TileJSONView):
+    layer_classes = [NongupJinheungVectorLayer]
+
+@method_decorator(cache_page(60 * 10), name='dispatch')
+class JayeonNogjiTileView(_BaseTile, MVTView):
+    layer_classes = [JayeonNogjiVectorLayer]
+class JayeonNogjiTileJSON(_BaseTile, TileJSONView):
+    layer_classes = [JayeonNogjiVectorLayer]
+
+@method_decorator(cache_page(60 * 10), name='dispatch')
+class GaebalJingheungTileView(_BaseTile, MVTView):
+    layer_classes = [GaebalJingheungVectorLayer]
+class GaebalJingheungTileJSON(_BaseTile, TileJSONView):
+    layer_classes = [GaebalJingheungVectorLayer]
+
+@method_decorator(cache_page(60 * 10), name='dispatch')
+class NongupSeisanGibanTileView(_BaseTile, MVTView):
+    layer_classes = [NongupSeisanGibanVectorLayer]
+class NongupSeisanGibanTileJSON(_BaseTile, TileJSONView):
+    layer_classes = [NongupSeisanGibanVectorLayer]
+
 
 # ---------------------------------------------------------------------
 # VWorld WMTS 프록시

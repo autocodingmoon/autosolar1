@@ -134,3 +134,40 @@ class ResiSetback(gis.Model):
     class Meta:
         managed = False
         db_table = '"filter"."3.4_f_fac_building_44_202509"'
+
+# 파일 하단 적절한 위치(예: ResiSetback 아래)에 추가
+class Nonglim(gis.Model):  # 농림지역
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."1.7.2_nonglim_al_d126_00_20250904"'
+
+class NongupJinheung(gis.Model):  # 농업진흥구역
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."1.7.2.1_nongupjinheung_al_d036_00_20250904"'
+
+class JayeonNogji(gis.Model):  # 자연녹지지역
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."1.7.4_jayeon_al_d127_00_20250904"'
+
+class GaebalJingheung(gis.Model):  # 개발진흥구역
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."1.7.5_gaebaljingeuing_al_d137_00_20250904"'
+
+class NongupSeisanGiban(gis.Model):  # 농업생산기반정비사업지역
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."1.7.6_nongup_etc_al_d035_00_20250904"'
+
