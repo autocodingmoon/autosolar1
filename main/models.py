@@ -1,4 +1,3 @@
-# main/models.py
 from django.contrib.gis.db import models as gis
 
 # =============================================================================
@@ -32,12 +31,11 @@ class LandCategory(gis.Model):
         managed = False
 
 
-# (참고로 예전에 있던 벡터타일 샘플)
 class Layer(gis.Model):
     name = gis.CharField(max_length=250)
     class Meta:
         managed = False
-        db_table = '"public"."layer"'  # 실제 쓰지 않으면 삭제해도 됩니다.
+        db_table = '"public"."layer"'
 
 
 class Feature(gis.Model):
@@ -46,78 +44,61 @@ class Feature(gis.Model):
     layer = gis.ForeignKey(Layer, on_delete=gis.CASCADE, related_name='features')
     class Meta:
         managed = False
-        db_table = '"public"."feature"'  # 실제 쓰지 않으면 삭제해도 됩니다.
-
+        db_table = '"public"."feature"'
 
 # =============================================================================
-# MVT용 읽기전용 모델들 (managed=False)
-#  - 전처리 테이블(owner_valid, owner_subdiv 등)을 쓰면 성능이 크게 향상됩니다.
-#  - SRID는 실제 좌표계로 교체하세요. (예: 5186 / 5179 / 4737 / 4326 등)
+# MVT용 읽기전용 모델들
 # =============================================================================
 
-# ---- Owner: 전처리/분할본(권장) ----
 class OwnerSubdiv(gis.Model):
     gid  = gis.IntegerField(primary_key=True)
-    a20  = gis.TextField(blank=True, null=True)   # 지목(원본 코드셋)
-    a8   = gis.TextField(blank=True, null=True)   # 소유자(군유지/국유지/법인/개인 등)
-    geom = gis.MultiPolygonField(srid=5186)       # ← 실제 SRID로 교체
-
-    class Meta:
-        managed = False
-        db_table = '"filter"."owner_subdiv"'          # 전처리 테이블명을 사용하세요
-
-
-# ---- Owner: 원본(폴백용) ----
-class OwnerRaw(gis.Model):
-    gid  = gis.IntegerField(primary_key=True)
-    a2   = gis.TextField(blank=True, null=True)   # ★ 추가
-    a5   = gis.TextField(blank=True, null=True)   # ★ 추가
     a20  = gis.TextField(blank=True, null=True)
     a8   = gis.TextField(blank=True, null=True)
-    geom = gis.MultiPolygonField(srid=5186)       # ← 실제 SRID로 교체
-
+    geom = gis.MultiPolygonField(srid=5186)
     class Meta:
         managed = False
-        # 따옴표/점이 포함된 테이블명은 정확히 적어야 합니다.
+        db_table = '"filter"."owner_subdiv"'
+
+class OwnerRaw(gis.Model):
+    gid  = gis.IntegerField(primary_key=True)
+    a2   = gis.TextField(blank=True, null=True)
+    a5   = gis.TextField(blank=True, null=True)
+    a20  = gis.TextField(blank=True, null=True)
+    a8   = gis.TextField(blank=True, null=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
         db_table = '"filter"."1.2_ownerinfo_chungnam_al_d160_44_20250907_combined"'
 
-
-# ---- Yongdo (용도구역) ----
 class Yongdo(gis.Model):
     gid  = gis.IntegerField(primary_key=True)
-    geom = gis.MultiPolygonField(srid=5186)       # ← 실제 SRID로 교체
+    geom = gis.MultiPolygonField(srid=5186)
     class Meta:
         managed = False
         db_table = '"filter"."1.7_yongdo_lsmd_cont_uq112_44_202508"'
 
-
-# ---- Road (도로이격 등 선형) ----
 class Road(gis.Model):
     gid  = gis.IntegerField(primary_key=True)
-    geom = gis.MultiLineStringField(srid=5186)    # ← 실제 SRID로 교체
+    geom = gis.MultiLineStringField(srid=5186)
     class Meta:
         managed = False
         db_table = '"filter"."3.4_road_lsmd_cont_ui101_44_202508"'
 
-
-# ---- Jimok (기타 폴리곤) ----
 class Jimok(gis.Model):
     gid     = gis.IntegerField(primary_key=True)
     pnu     = gis.TextField(blank=True, null=True)
     jibun   = gis.TextField(blank=True, null=True)
-    a20     = gis.TextField(blank=True, null=True)    # 있으면 사용
-    geom    = gis.MultiPolygonField(srid=5186)        # ← 실제 SRID로 교체
-
+    a20     = gis.TextField(blank=True, null=True)
+    geom    = gis.MultiPolygonField(srid=5186)
     class Meta:
         managed = False
         db_table = '"filter."jimok"'
 
-# main/models.py (추가)
 class OwnerS30(gis.Model):
     gid  = gis.IntegerField(primary_key=True)
     a20  = gis.TextField(blank=True, null=True)
     a8   = gis.TextField(blank=True, null=True)
-    geom = gis.MultiPolygonField(srid=5186)         # 실제 SRID로
+    geom = gis.MultiPolygonField(srid=5186)
     class Meta:
         managed = False
         db_table = '"filter"."owner_s30"'
@@ -146,3 +127,10 @@ class JimokS30(gis.Model):
         managed = False
         db_table = '"filter"."jimok_s30"'
 
+# ✅ 추가: 주거이격(폴리곤) — filter."3.4_f_fac_building_44_202509"
+class ResiSetback(gis.Model):
+    gid  = gis.IntegerField(primary_key=True)
+    geom = gis.MultiPolygonField(srid=5186)
+    class Meta:
+        managed = False
+        db_table = '"filter"."3.4_f_fac_building_44_202509"'

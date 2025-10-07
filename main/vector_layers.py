@@ -5,7 +5,8 @@ from .models import (
     OwnerSubdiv, OwnerS30, OwnerRaw,
     Yongdo, YongdoS30,
     Road, RoadS10,
-    Jimok, JimokS30
+    Jimok, JimokS30,
+    ResiSetback,          # ✅ 추가: 주거이격 원본 테이블 매핑 모델
 )
 
 def _norm_list(values):
@@ -45,7 +46,7 @@ class OwnerVectorLayer(VectorLayer):
             if own:
                 qs = qs.filter(a8__in=own)
         
-         # 4) a2/a5가 없는 단순화/분할 테이블에 대해 빈 필드 annotate
+        # 4) a2/a5가 없는 단순화/분할 테이블에 대해 빈 필드 annotate
         model_fields = {f.name for f in qs.model._meta.get_fields()}
         if "a2" not in model_fields:
             qs = qs.annotate(a2=Value("", output_field=TextField()))
@@ -95,3 +96,14 @@ class JimokVectorLayer(VectorLayer):
         if zoom is not None and zoom <= 11 and JimokS30:
             return JimokS30.objects.all()
         return Jimok.objects.all()
+
+# ===== Resi (주거이격) — 도로이격과 동일한 MVT 경로 ============================
+class ResiVectorLayer(VectorLayer):
+    id = "resi"
+    geom_field = "geom"
+    min_zoom = 10
+    tile_fields = ("gid",)
+
+    def get_queryset(self, request=None, bbox=None, zoom=None):
+        # 별도 필터 없음: 전체를 그대로 제공
+        return ResiSetback.objects.all()

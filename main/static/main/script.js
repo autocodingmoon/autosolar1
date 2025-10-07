@@ -205,12 +205,13 @@
   let vgJm = null;    // 지목(파랑)
   let vgOwn = null;   // 소유자(초록)
   let vgYongdo = null, vgRoad = null, vgJimok = null;
+  let vgResi = null;  // ✅ 주거이격(짙은 파랑)
 
   // ---------- 쿼리스트링 ----------
   const qs = (pairs) => {
     const parts = [];
     Object.entries(pairs).forEach(([k, vals]) => (Array.isArray(vals)?vals:[vals]).filter(Boolean).forEach(v => parts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`)));
-    parts.push('_t=' + Date.now()); // 캐시 무효화
+    parts.push('_t=' + Date.now());
     return '?' + parts.join('&');
   };
 
@@ -268,31 +269,41 @@
     }).addTo(map);
   }
 
+  // ✅ 주거이격(MVT) 추가 — 도로이격과 동일 구조
+  function addResi(){
+    vgResi = L.vectorGrid.protobuf(`/tiles/resi/{z}/{x}/{y}.pbf`, {
+      maxNativeZoom:22, interactive:false,
+      vectorTileLayerStyles:{
+        resi:{ fill:true, fillOpacity:0.25, weight:0.8, color:'#1e3a8a' } // 짙은 파랑
+      }
+    }).addTo(map);
+  }
+
   function removeIf(layerRefName){
-    const ref = { vgJm, vgOwn, vgYongdo, vgRoad, vgJimok }[layerRefName];
+    const ref = { vgJm, vgOwn, vgYongdo, vgRoad, vgJimok, vgResi }[layerRefName];
     if (ref && map.hasLayer(ref)) map.removeLayer(ref);
     if (layerRefName==='vgJm') vgJm=null;
     if (layerRefName==='vgOwn') vgOwn=null;
     if (layerRefName==='vgYongdo') vgYongdo=null;
     if (layerRefName==='vgRoad') vgRoad=null;
     if (layerRefName==='vgJimok') vgJimok=null;
+    if (layerRefName==='vgResi') vgResi=null;
   }
 
   $('#chk-road')?.addEventListener('change', e => {
     if (e.target.checked) {
       addRoad();
-      // 도로 레이어 켜질 때, 시각화 셰이드 UI 상태도 재동기화
-      syncRoadSetbackUI();
-      // 체크돼 있고, 이미 셰이드가 활성화 중이라면 표시
+      syncRoadSetbackUI?.();
       if (roadSetbackEnabled && roadSetbackLayer) roadSetbackLayer.addTo(map);
     } else {
       removeIf('vgRoad');
-      // 도로 끄면 셰이드도 숨김
       if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
     }
   });
   $('#chk-yongdo')?.addEventListener('change', e => e.target.checked ? addYongdo(): removeIf('vgYongdo'));
   $('#chk-jimok')?.addEventListener('change', e => e.target.checked ? addJimok() : removeIf('vgJimok'));
+  // ✅ 추가: 주거이격 토글
+  $('#chk-resi')?.addEventListener('change', e => e.target.checked ? addResi() : removeIf('vgResi'));
 
   const debJm  = debounce(refreshJm, 150);
   const debOwn = debounce(refreshOwn, 150);
@@ -309,9 +320,8 @@
   let roadSetbackEnabled = false;    // 체크박스 상태
   let roadSetbackLastDist = 50;      // 최초 로드 시 사용한 m값(표시용)
 
-  // API 호출: 현재 지도 bbox + dist(m)로 GeoJSON 1회 로드
   async function loadRoadSetbackOnce(dist) {
-    if (roadSetbackLoaded && roadSetbackLayer) return; // 이미 로드됨
+    if (roadSetbackLoaded && roadSetbackLayer) return;
     const b = map.getBounds();
     const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
     const url = `/geojson/road_setback${qs({ dist, bbox })}`;
@@ -320,15 +330,13 @@
     if (!res.ok) throw new Error('HTTP '+res.status);
     const gj = await res.json();
 
-    // 기존 레이어 제거
     if (roadSetbackLayer && map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
 
-    // 회색 셰이딩 스타일
     roadSetbackLayer = L.geoJSON(gj, {
       style: {
-        color: '#666',       // 외곽선
+        color: '#666',
         weight: 1,
-        fillColor: '#999',   // 채움
+        fillColor: '#999',
         fillOpacity: 0.35
       }
     });
@@ -337,7 +345,6 @@
     roadSetbackLastDist = dist;
   }
 
-  // UI 삽입: "도로이격(시각)" 체크박스 + 거리 입력 + (옵션) 갱신 버튼
   function insertRoadSetbackUI() {
     const roadChk = document.getElementById('chk-road');
     if (!roadChk) return;
@@ -370,12 +377,10 @@
 
     function setHint(text) { hint.textContent = text || ''; }
 
-    // 토글 동작: 처음 켤 때 한 번 로드 → 이후엔 보이기/숨기기만
     cb.addEventListener('change', async () => {
       roadSetbackEnabled = cb.checked;
 
       if (!document.getElementById('chk-road')?.checked) {
-        // 도로 레이어가 꺼져 있으면 켜달라고 안내
         cb.checked = false;
         roadSetbackEnabled = false;
         return alert('먼저 "도로" 레이어를 켜주세요.');
@@ -383,7 +388,6 @@
 
       try {
         if (roadSetbackEnabled) {
-          // 최초 ON에서만 서버 호출 (로드 안됐으면)
           if (!roadSetbackLoaded) {
             const dist = Math.max(1, parseInt(inp.value || '50', 10));
             setHint('불러오는 중…');
@@ -407,7 +411,6 @@
       }
     });
 
-    // (옵션) 수동 갱신: 거리 값을 바꾸고 누르면 "한 번 더" 서버에서 새로 받아 업데이트
     btn.addEventListener('click', async () => {
       try {
         if (!document.getElementById('chk-road')?.checked) {
@@ -415,13 +418,10 @@
         }
         const dist = Math.max(1, parseInt(inp.value || '50', 10));
         setHint('갱신 중…');
-        // 새 거리로 재로딩(이때만 다시 요청)
         roadSetbackLoaded = false;
         await loadRoadSetbackOnce(dist);
         setHint(`로드 완료 (${roadSetbackLastDist}m 기준)`);
-        // 켜져 있으면 즉시 갱신 반영
         if (roadSetbackEnabled && roadSetbackLayer) {
-          // 기존 레이어 제거 후 새 레이어 추가
           if (map.hasLayer(roadSetbackLayer)) map.removeLayer(roadSetbackLayer);
           roadSetbackLayer.addTo(map);
         }
@@ -432,7 +432,6 @@
       }
     });
 
-    // 도로 체크박스와 동기화(도로 꺼지면 비활성)
     function syncEnable() {
       const roadOn = document.getElementById('chk-road')?.checked;
       cb.disabled = !roadOn;
@@ -445,15 +444,166 @@
       }
     }
     document.getElementById('chk-road')?.addEventListener('change', syncEnable);
-    window.syncRoadSetbackUI = syncEnable; // 위에서 호출하기 위해 노출
+    window.syncRoadSetbackUI = syncEnable;
     syncEnable();
   }
 
-  // DOM 준비 후 UI 삽입
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', insertRoadSetbackUI);
   } else {
     insertRoadSetbackUI();
   }
+
+  // =====================================================================
+  // ✅ [RESI SETBACK GEOJSON] — 주거이격(제척) : 도로이격(시각)과 동일 패턴
+  // =====================================================================
+
+  // 상태
+  let resiSetbackLayer = null;     // 회색 셰이딩 레이어(GeoJSON)
+  let resiSetbackLoaded = false;   // 한번이라도 로드했는지
+  let resiSetbackEnabled = false;  // 체크박스 상태
+  let resiSetbackLastDist = 50;    // 최근 로드 기준 m
+
+  async function loadResiSetbackOnce(dist) {
+    if (resiSetbackLoaded && resiSetbackLayer) return;
+    const b = map.getBounds();
+    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',');
+    const url = `/geojson/resi_setback${qs({ dist, bbox })}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const gj = await res.json();
+
+    if (resiSetbackLayer && map.hasLayer(resiSetbackLayer)) map.removeLayer(resiSetbackLayer);
+
+    resiSetbackLayer = L.geoJSON(gj, {
+      style: {
+        color: '#666',
+        weight: 1,
+        fillColor: '#999',
+        fillOpacity: 0.35
+      }
+    });
+
+    resiSetbackLoaded = true;
+    resiSetbackLastDist = dist;
+  }
+
+  function insertResiSetbackUI() {
+    const resiChk = document.getElementById('chk-resi');
+    if (!resiChk) return;
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;';
+    wrap.innerHTML = `
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="checkbox" id="chk-resi-setback">
+        <span>주거이격(제척)</span>
+      </label>
+      <input type="number" id="resi-setback-m" min="1" step="1" value="50"
+             style="width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;">
+      <span>m</span>
+      <button id="btn-resi-setback-reload"
+              style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;">
+        갱신
+      </button>
+      <small id="resi-setback-hint" style="color:#64748b;"></small>
+    `;
+
+    const labelEl = resiChk.closest('label');
+    if (labelEl) labelEl.insertAdjacentElement('afterend', wrap);
+    else (resiChk.parentElement || document.getElementById('sidebar'))?.appendChild(wrap);
+
+    const cb   = $('#chk-resi-setback', wrap);
+    const inp  = $('#resi-setback-m', wrap);
+    const btn  = $('#btn-resi-setback-reload', wrap);
+    const hint = $('#resi-setback-hint', wrap);
+
+    function setHint(text) { hint.textContent = text || ''; }
+
+    cb.addEventListener('change', async () => {
+      resiSetbackEnabled = cb.checked;
+
+      if (!document.getElementById('chk-resi')?.checked) {
+        cb.checked = false;
+        resiSetbackEnabled = false;
+        return alert('먼저 "주거이격" 레이어를 켜주세요.');
+      }
+
+      try {
+        if (resiSetbackEnabled) {
+          if (!resiSetbackLoaded) {
+            const dist = Math.max(1, parseInt(inp.value || '50', 10));
+            setHint('불러오는 중…');
+            await loadResiSetbackOnce(dist);
+            setHint(`로드 완료 (${resiSetbackLastDist}m 기준, 이후 토글은 재요청 없음)`);
+          }
+          if (resiSetbackLayer && !map.hasLayer(resiSetbackLayer)) {
+            resiSetbackLayer.addTo(map);
+          }
+        } else {
+          if (resiSetbackLayer && map.hasLayer(resiSetbackLayer)) {
+            map.removeLayer(resiSetbackLayer);
+          }
+        }
+      } catch (e) {
+        console.error('[resi setback]', e);
+        alert('주거이격(제척) 로드에 실패했습니다.');
+        setHint('');
+        cb.checked = false;
+        resiSetbackEnabled = false;
+      }
+    });
+
+    btn.addEventListener('click', async () => {
+      try {
+        if (!document.getElementById('chk-resi')?.checked) {
+          return alert('먼저 "주거이격" 레이어를 켜주세요.');
+        }
+        const dist = Math.max(1, parseInt(inp.value || '50', 10));
+        setHint('갱신 중…');
+        resiSetbackLoaded = false;
+        await loadResiSetbackOnce(dist);
+        setHint(`로드 완료 (${resiSetbackLastDist}m 기준)`);
+        if (resiSetbackEnabled && resiSetbackLayer) {
+          if (map.hasLayer(resiSetbackLayer)) map.removeLayer(resiSetbackLayer);
+          resiSetbackLayer.addTo(map);
+        }
+      } catch (e) {
+        console.error('[resi setback reload]', e);
+        alert('주거이격(제척) 갱신에 실패했습니다.');
+        setHint('');
+      }
+    });
+
+    function syncEnable() {
+      const resiOn = document.getElementById('chk-resi')?.checked;
+      cb.disabled = !resiOn;
+      inp.disabled = !resiOn;
+      btn.disabled = !resiOn;
+      if (!resiOn) {
+        cb.checked = false;
+        resiSetbackEnabled = false;
+        if (resiSetbackLayer && map.hasLayer(resiSetbackLayer)) map.removeLayer(resiSetbackLayer);
+      }
+    }
+    document.getElementById('chk-resi')?.addEventListener('change', syncEnable);
+    window.syncResiSetbackUI = syncEnable;
+    syncEnable();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', insertResiSetbackUI);
+  } else {
+    insertResiSetbackUI();
+  }
+
+  // 주거이격(MVT) 해제 시 제척 레이어도 함께 정리 (선택적 안전장치)
+  document.getElementById('chk-resi')?.addEventListener('change', () => {
+    const on = document.getElementById('chk-resi')?.checked;
+    if (!on && resiSetbackLayer && map.hasLayer(resiSetbackLayer)) {
+      map.removeLayer(resiSetbackLayer);
+    }
+  });
 
 })();

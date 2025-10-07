@@ -42,11 +42,16 @@
           <input type="checkbox" id="chk-road" />
           도로이격
         </label>
+        <!-- ✅ 추가: 주거이격 (MVT, 도로이격과 동일 방식) -->
+        <label style="display:block; margin-bottom:6px;">
+          <input type="checkbox" id="chk-resi" />
+          주거이격
+        </label>
         <label style="display:block; margin-bottom:6px;">
           <input type="checkbox" id="chk-yongdo" />
           용도구역
         </label>
-        <!-- ✅ 새로 추가: 기타(= jimok 폴리곤) -->
+        <!-- ✅ 기타(= jimok 폴리곤) -->
         <label style="display:block; margin-bottom:12px;">
           <input type="checkbox" id="chk-jimok" />
           기타
@@ -107,7 +112,7 @@
   <!-- Leaflet -->
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- ✅ VectorGrid 추가: 반드시 Leaflet JS 다음, 앱 스크립트 이전 -->
+  <!-- ✅ VectorGrid 추가 -->
   <script defer src="https://unpkg.com/leaflet.vectorgrid/dist/Leaflet.VectorGrid.bundled.js"></script>
 
   <!-- 앱 스크립트 -->
