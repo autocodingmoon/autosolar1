@@ -291,7 +291,7 @@
   function addNongupJin(){      // 농업진흥구역: 회색
     vgNongupJin = L.vectorGrid.protobuf(`/tiles/nongupjinheung/{z}/{x}/{y}.pbf`, {
       maxNativeZoom:22, interactive:false,
-      vectorTileLayerStyles:{ nongupjinheung:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#6b7280' } } // gray
+      vectorTileLayerStyles:{ nongupjinheung:{ fill:true, fillOpacity:0.20, weight:0.8, color:'#262627ff' } } // gray
     }).addTo(map);
   }
   function addJayeon(){         // 자연녹지지역: 초록색
