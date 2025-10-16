@@ -2,142 +2,256 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>지도 예제</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Solar 패널</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- 앱 스타일 -->
+  <!-- App styles -->
   <link rel="stylesheet" href="{% static 'main/style.css' %}" />
 
-  <!-- (선택) 파비콘 404 방지: 1×1 투명 PNG -->
   <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=">
 </head>
 <body>
+  <!-- 상단 고정 바: 검색 + 베이스맵 토글(아이콘) -->
+  <header class="topbar">
+    <div class="brand">
+      <img src="{% static 'image/logo_image.png' %}"  alt="AutoSolar 로고"  class="brand-icon">
+      <img src="{% static 'image/logo_letter.png' %}" alt="autosolar"      class="brand-letter">
+    </div>
+    <div class="searchbar">
+      <input id="addr-input" type="text" placeholder="주소 또는 지번을 입력하세요" />
+      <button id="btn-search" class="btn primary">
+        <!-- search icon -->
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18a8 8 0 1 1 5.292-14.03l4.87 4.87-1.414 1.414-4.87-4.87A6 6 0 1 0 16 10a5.96 5.96 0 0 0-.878-3.108l1.705-1.024A8 8 0 0 1 10 18z" fill="currentColor"/></svg>
+        검색
+      </button>
+    </div>
+
+    <!-- 베이스맵 라디오 토글 -->
+    <div class="basemap-mini" id="basemap-mini">
+      <label class="bm-radio">
+        <input type="radio" name="bm" id="bm-osm" value="OSM_BASE" checked />
+        <span class="ico" title="일반(OSM)">🌐</span><span class="txt">Base</span>
+      </label>
+      <label class="bm-radio">
+        <input type="radio" name="bm" id="bm-vw-base" value="VW_BASE" />
+        <span class="ico" title="일반(VWorld)">🗺️</span><span class="txt">V-Base</span>
+      </label>
+      <label class="bm-radio">
+        <input type="radio" name="bm" id="bm-vw-sat" value="VW_SAT" />
+        <span class="ico" title="위성(VWorld)">🛰️</span><span class="txt">Sat</span>
+      </label>
+    </div>
+  </header>
+
   <div class="app">
-    <!-- 왼쪽 사이드바 -->
+    <!-- 좌측 사이드바 -->
     <aside id="sidebar">
-      <h3>Auto Solar 패널</h3>
+      <h3 class="sr-only">레이어 & 필터</h3>
 
-      <!-- 1) 검색 -->
-      <button class="nav-btn" data-target="panel-search">🔎 검색</button>
-      <div id="panel-search" class="panel">
-        <div class="search-row">
-          <input id="addr-input" type="text" placeholder="예: 서울특별시 중구 세종대로 110" />
-          <button id="btn-search">검색</button>
+      <!-- Accordion 1: 표시 레이어 -->
+      <section class="accordion">
+        <button class="acc-header" data-acc="#acc-layers">
+          <span>표시 레이어</span>
+          <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <div id="acc-layers" class="acc-body">
+
+          <!-- 카드: 주거이격(MVT) -->
+          <div class="card">
+            <div class="card-header">
+              <label class="switch">
+                <input type="checkbox" id="chk-resi" />
+                <span class="slider"></span>
+              </label>
+              <span class="title">
+                <span class="dot" style="background:#1e3a8a"></span> 주거이격
+              </span>
+              <button class="icon-btn" data-help="resi" title="도움말">i</button>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <span class="label">투명도</span>
+                <input type="range" id="opacity-resi" class="opacity" min="0" max="1" step="0.05" value="0.25" />
+                <span class="percent" id="opacity-resi-val">25%</span>
+              </div>
+
+              <div class="row">
+                <label class="label" for="resi-setback-m">이격거리</label>
+                <input type="number" id="resi-setback-m" min="1" step="1" value="50" class="num" />
+                <span class="unit">m</span>
+                <button id="btn-resi-setback-reload" class="btn">갱신</button>
+                <small id="resi-setback-hint" class="hint"></small>
+              </div>
+            </div>
+          </div>
+
+          <!-- 카드: 도로이격(GeoJSON) -->
+          <div class="card">
+            <div class="card-header">
+              <label class="switch">
+                <input type="checkbox" id="chk-road" />
+                <span class="slider"></span>
+              </label>
+              <span class="title">
+                <span class="dot" style="background:#ef4444"></span> 도로이격
+              </span>
+              <button class="icon-btn" data-help="road" title="도움말">i</button>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <span class="label">투명도</span>
+                <input type="range" id="opacity-road" class="opacity" min="0" max="1" step="0.05" value="0.35" />
+                <span class="percent" id="opacity-road-val">35%</span>
+              </div>
+
+              <div class="row">
+                <label class="label" for="road-setback-m">이격거리</label>
+                <input type="number" id="road-setback-m" min="1" step="1" value="50" class="num" />
+                <span class="unit">m</span>
+                <button id="btn-road-setback-reload" class="btn">갱신</button>
+                <small id="road-setback-hint" class="hint"></small>
+              </div>
+            </div>
+          </div>
+
+          <!-- 정책 레이어 5종 -->
+          <div class="card">
+            <div class="card-header">
+              <label class="switch"><input type="checkbox" id="chk-nonglim"><span class="slider"></span></label>
+              <span class="title"><span class="dot" style="background:#a3e635"></span> 농림지역</span>
+            </div>
+            <div class="card-body slim">
+              <span class="label">투명도</span>
+              <input type="range" id="opacity-nonglim" class="opacity" min="0" max="1" step="0.05" value="0.20" />
+              <span class="percent" id="opacity-nonglim-val">20%</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <label class="switch"><input type="checkbox" id="chk-nongupjin"><span class="slider"></span></label>
+              <span class="title"><span class="dot" style="background:#262627"></span> 농업진흥구역</span>
+            </div>
+            <div class="card-body slim">
+              <span class="label">투명도</span>
+              <input type="range" id="opacity-nongupjin" class="opacity" min="0" max="1" step="0.05" value="0.20" />
+              <span class="percent" id="opacity-nongupjin-val">20%</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <label class="switch"><input type="checkbox" id="chk-jayeon"><span class="slider"></span></label>
+              <span class="title"><span class="dot" style="background:#22c55e"></span> 자연녹지지역</span>
+            </div>
+            <div class="card-body slim">
+              <span class="label">투명도</span>
+              <input type="range" id="opacity-jayeon" class="opacity" min="0" max="1" step="0.05" value="0.20" />
+              <span class="percent" id="opacity-jayeon-val">20%</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <label class="switch"><input type="checkbox" id="chk-gaebal"><span class="slider"></span></label>
+              <span class="title"><span class="dot" style="background:#f97316"></span> 개발진흥구역</span>
+            </div>
+            <div class="card-body slim">
+              <span class="label">투명도</span>
+              <input type="range" id="opacity-gaebal" class="opacity" min="0" max="1" step="0.05" value="0.20" />
+              <span class="percent" id="opacity-gaebal-val">20%</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <label class="switch"><input type="checkbox" id="chk-nongupgiban"><span class="slider"></span></label>
+              <span class="title"><span class="dot" style="background:#eab308"></span> 농업생산기반정비사업지역</span>
+            </div>
+            <div class="card-body slim">
+              <span class="label">투명도</span>
+              <input type="range" id="opacity-nongupgiban" class="opacity" min="0" max="1" step="0.05" value="0.20" />
+              <span class="percent" id="opacity-nongupgiban-val">20%</span>
+            </div>
+          </div>
+
         </div>
-        <div class="placeholder" style="margin-top:8px;">
-          주소를 입력 후 Enter 또는 검색 버튼을 누르세요.
+      </section>
+
+      <!-- Accordion 2: 지목 -->
+      <section class="accordion">
+        <button class="acc-header" data-acc="#acc-jimok">
+          <span>지목</span>
+          <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <div id="acc-jimok" class="acc-body">
+          <div id="grp-jimok" class="chips">
+            <!-- 기존 체크박스 그대로 두되, chip 스타일만 적용 -->
+            <label class="chip"><input type="checkbox" class="jm" value="전"><span>전</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="답"><span>답</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="과수원"><span>과수원</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="잡종지"><span>잡종지</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="목장용지"><span>목장용지</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="염전"><span>염전</span></label>
+            <label class="chip"><input type="checkbox" class="jm" value="양어장"><span>양어장</span></label>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 2) 필터 (체크박스 포함) -->
-      <button class="nav-btn" data-target="panel-filter">🧰 필터</button>
-      <div id="panel-filter" class="panel">
-        <!-- 표시 레이어 -->
-        <div style="margin:6px 0 10px; font-weight:600;">표시 레이어</div>
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-road" />
-          도로이격
-        </label>
-        <!-- ✅ 추가: 주거이격 (MVT, 도로이격과 동일 방식) -->
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-resi" />
-          주거이격
-        </label>
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-yongdo" />
-          관리지역
-        </label>
-        <!-- ✅ 기타(= jimok 폴리곤) -->
-        <!-- <label style="display:block; margin-bottom:12px;">
-          <input type="checkbox" id="chk-jimok" />
-          기타 -->
-        </label>
-        <!-- 기존 "표시 레이어" 섹션 안, 주거이격/용도구역/기타 아래에 이어서 추가 -->
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-nonglim" />
-          농림지역
-        </label>
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-nongupjin" />
-          농업진흥구역
-        </label>
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-jayeon" />
-          자연녹지지역
-        </label>
-        <label style="display:block; margin-bottom:6px;">
-          <input type="checkbox" id="chk-gaebal" />
-          개발진흥구역
-        </label>
-        <label style="display:block; margin-bottom:12px;">
-          <input type="checkbox" id="chk-nongupgiban" />
-          농업생산기반정비사업지역
-        </label>
-
-        <!-- 지목 필터 -->
-        <div style="margin:6px 0 6px; font-weight:600;">지목</div>
-        <div class="filter-group" id="grp-jimok" style="line-height:1.8;">
-          <label><input type="checkbox" class="jm" value="전"> 전</label><br/>
-          <label><input type="checkbox" class="jm" value="답"> 답</label><br/>
-          <label><input type="checkbox" class="jm" value="과수원"> 과수원</label><br/>
-          <label><input type="checkbox" class="jm" value="잡종지"> 잡종지</label><br/>
-          <label><input type="checkbox" class="jm" value="목장용지"> 목장용지</label><br/>
-          <label><input type="checkbox" class="jm" value="염전"> 염전</label><br/>
-          <label><input type="checkbox" class="jm" value="양어장"> 양어장</label>
+      <!-- Accordion 3: 소유자 -->
+      <section class="accordion">
+        <button class="acc-header" data-acc="#acc-owner">
+          <span>소유자</span>
+          <svg class="chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        </button>
+        <div id="acc-owner" class="acc-body">
+          <div id="grp-owner" class="chips">
+            <label class="chip"><input type="checkbox" class="own" value="군유지"><span>군유지</span></label>
+            <label class="chip"><input type="checkbox" class="own" value="국유지"><span>국유지</span></label>
+            <label class="chip"><input type="checkbox" class="own" value="법인"><span>법인</span></label>
+            <label class="chip"><input type="checkbox" class="own" value="개인"><span>개인</span></label>
+          </div>
         </div>
-
-        <!-- 소유자 필터 -->
-        <div style="margin:10px 0 6px; font-weight:600;">소유자</div>
-        <div class="filter-group" id="grp-owner" style="line-height:1.8;">
-          <label><input type="checkbox" class="own" value="군유지"> 군유지</label><br/>
-          <label><input type="checkbox" class="own" value="국유지"> 국유지</label><br/>
-          <label><input type="checkbox" class="own" value="법인"> 법인</label><br/>
-          <label><input type="checkbox" class="own" value="개인"> 개인</label>
+      </section>
+    
+      <!-- Accordion 4: 토지 권리 관계 -->
+      <section class="accordion">
+        <button class="acc-header" data-acc="#acc-rights">
+          <span>토지 권리 관계</span>
+          <svg class="chev" viewBox="0 0 24 24">
+            <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </button>
+        <div id="acc-rights" class="acc-body">
+          <!-- 새 창에서 열리는 버튼 (a 태그를 버튼처럼 스타일) -->
+          <a
+            href="https://code-from-files-2-jeong82.replit.app/"
+            target="_blank"
+            rel="noopener"
+            class="btn primary full"
+            aria-label="등본 발급 새 창으로 열기"
+          >등본 발급</a>
+          <small class="hint">새 창에서 등본 발급 페이지가 열립니다.</small>
         </div>
-
-        <div class="placeholder" style="margin-top:10px; color:#777;">
-          체크하면 현재 화면 범위(BBOX)만 우선 로드합니다.
-        </div>
-      </div>
-
-      <!-- 3) 프로젝트 생성 -->
-      <button class="nav-btn" data-target="panel-project-create">🆕 프로젝트 생성</button>
-      <div id="panel-project-create" class="panel">
-        <div class="placeholder">현재 화면 상태로 프로젝트를 생성하는 기능 자리입니다.</div>
-      </div>
-
-      <!-- 4) 프로젝트 관리 -->
-      <button class="nav-btn" data-target="panel-project-manage">📁 프로젝트 관리</button>
-      <div id="panel-project-manage" class="panel">
-        <div class="placeholder">기존 프로젝트 불러오기/목록 UI 자리입니다.</div>
-      </div>
-
-      <!-- 5) 로그인 -->
-      <button class="nav-btn" data-target="panel-login">🔐 로그인</button>
-      <div id="panel-login" class="panel">
-        <div class="placeholder">유저별 저장/로드를 위한 로그인 UI 자리입니다.</div>
-      </div>
+      </section>
     </aside>
 
-    <!-- 오른쪽 지도 -->
+    <!-- 지도 -->
     <main id="map"></main>
   </div>
 
-  <!-- 🔑 VWorld 키 주입 -->
+  <!-- VWorld 키 주입 -->
   <script>window.VWORLD_KEY = "{{ VWORLD_KEY|default:'' }}";</script>
 
-  <!-- Leaflet -->
+  <!-- Leaflet & VectorGrid -->
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- ✅ VectorGrid 추가 -->
   <script defer src="https://unpkg.com/leaflet.vectorgrid/dist/Leaflet.VectorGrid.bundled.js"></script>
 
-  <!-- 앱 스크립트 -->
-  <script defer src="{% static 'main/script.js' %}?v=20250921_02"></script>
-
+  <!-- App script -->
+  <script defer src="{% static 'main/script.js' %}?v=ui_v2"></script>
 </body>
 </html>

@@ -1,91 +1,129 @@
-html, body { margin:0; padding:0; height:100%; }
-body { font-family: system-ui, Arial, sans-serif; }
+/* 기본 레이아웃 */
+:root{
+  --border:#e5e7eb;
+  --muted:#6b7280;
+  --bg:#fff;
+  --shadow:0 2px 8px rgba(0,0,0,.08);
+  --radius:10px;
+  --primary:#4f46e5;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:system-ui,Arial,sans-serif;color:#111}
 
-/* 레이아웃: 좌측 사이드바 + 우측 지도 */
-.app {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  height: 100vh;
-}
-
-/* 사이드바 */
-#sidebar {
-  border-right: 1px solid #e5e7eb;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-}
-#sidebar h3 {
-  margin: 4px 0 12px;
-  font-size: 18px;
-}
-.nav-btn {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-}
-.nav-btn:hover { background:#eef2ff; }
-
-.panel {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px;
-  display: none; /* 기본은 접힘 */
-  background: #fff;
-}
-/* JS에서 .active를 토글함 */
-.panel.active { display:block; }
-
-/* 검색 패널 내부 입력/버튼 */
-.search-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.search-row input {
-  flex: 1;
-  padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-}
-.search-row button {
-  padding: 8px 12px;
-  border: 1px solid #4f46e5;
-  background: #4f46e5;
-  color: #fff;
-  border-radius: 6px;
-  cursor: pointer;
+/* 상단 바 */
+.topbar{
+  position: sticky; top: 0; z-index: 5000;
+  height: 56px; display: flex; align-items: center; gap: 16px;
+  padding: 8px 12px; background: #ffffff; border-bottom: 1px solid var(--border);
 }
 
-/* 지도 영역 */
-#map { width: 100%; height: 100%; }
-
-/* 안내 텍스트(자리표시자) */
-.placeholder { color:#6b7280; font-size: 14px; }
-
-/* === Basemap/Vendor 스위처(지도 좌상단) === */
-.leaflet-top.leaflet-left .basemap-control {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 8px 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.08);
-  font-size: 13px;
-  line-height: 1.4;
-  min-width: 190px;
+/* 브랜드: 아이콘 이미지 + 레터 이미지 */
+.brand{
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; /* 필요 없으면 제거 가능 */
 }
-.basemap-control .row { display: flex; gap: 8px; margin: 4px 0; }
-.basemap-control label {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 6px; border-radius: 6px; cursor: pointer;
-  border: 1px solid #e5e7eb; background:#fafafa;
+/* 새로 추가된 이미지용 클래스 */
+.brand-icon{
+  height: 28px;      /* 아이콘 높이 조정값 */
+  width: auto; display: block;
 }
-.basemap-control input[type="checkbox"] { transform: translateY(1px); }
-.basemap-control .hint { color:#6b7280; font-size:12px; margin-top:4px; }
+.brand-letter{
+  height: 20px;      /* 글자 로고 높이 조정값 */
+  width: auto; display: block;
+}
 
+/* 기존 텍스트 로고는 더 이상 사용하지 않지만 남겨둬도 무방 */
+.logo{ display:none; }
+.name{ display:none; }
+
+.searchbar{
+  display: flex; gap: 8px; flex: 1; max-width: 720px; margin: 0 auto;
+}
+.searchbar input{
+  flex: 1; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+}
+.btn{
+  padding: 9px 12px; border: 1px solid var(--border); background: #f8fafc;
+  border-radius: 8px; cursor: pointer;
+}
+.btn.primary{ border-color: var(--primary); background: var(--primary); color: #fff; }
+
+.btn.full { width: 100%; text-align: center; }
+.acc-body .hint { display:block; margin-top:6px; color:#64748b; }
+
+
+
+/* 베이스맵 미니 토글 */
+.basemap-mini{display:flex; align-items:center; gap:8px}
+.bm-radio{display:flex; align-items:center; gap:6px; border:1px solid var(--border); padding:6px 8px; border-radius:8px; background:#fafafa; cursor:pointer}
+.bm-radio input{display:none}
+.bm-radio .ico{font-size:14px}
+.bm-radio .txt{font-size:12px}
+
+/* 본문 */
+.app{
+  display:grid; grid-template-columns:320px 1fr;
+  height:calc(100vh - 56px);
+}
+#sidebar{
+  border-right:1px solid var(--border); background:#fff; padding:10px; overflow:auto;
+}
+
+/* Accordion */
+.accordion{margin-bottom:10px}
+.acc-header{
+  width:100%; display:flex; align-items:center; justify-content:space-between;
+  padding:10px 12px; background:#f9fafb; border:1px solid var(--border);
+  border-radius:8px; cursor:pointer;
+}
+.acc-body{padding:10px 4px 0}
+.acc-body.hidden{display:none}
+.chev{width:18px;height:18px}
+
+/* 카드 컴포넌트 */
+.card{
+  border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg); box-shadow:var(--shadow); margin:10px 0;
+}
+.card-header{
+  display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border);
+}
+.card-body{padding:8px 10px}
+.card-body.slim{display:flex; align-items:center; gap:8px}
+.title{font-weight:600; flex:1}
+.dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px}
+.icon-btn{border:1px solid var(--border); background:#f3f4f6; border-radius:6px; width:22px; height:22px; font-size:12px; cursor:pointer}
+
+/* switch */
+.switch{position:relative;display:inline-block;width:36px;height:20px}
+.switch input{display:none}
+.slider{
+  position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#e5e7eb;border-radius:999px;transition:.2s
+}
+.slider:before{
+  content:"";position:absolute;height:16px;width:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s
+}
+.switch input:checked + .slider{background:#22c55e}
+.switch input:checked + .slider:before{transform:translateX(16px)}
+
+/* 폼 요소 */
+.label{font-size:12px;color:var(--muted);min-width:56px}
+.num{width:90px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px}
+.unit{font-size:12px;color:var(--muted)}
+.hint{color:#64748b;margin-left:6px}
+.opacity{flex:1}
+.row{display:flex; align-items:center; gap:8px; margin:8px 0}
+.percent{font-size:12px;color:var(--muted); width:40px; text-align:right}
+
+/* 칩(지목/소유자) */
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border); background:#fafafa; border-radius:999px; cursor:pointer}
+.chip input{display:none}
+.chip input:checked + span{font-weight:600}
+
+/* 지도 */
+#map{width:100%; height:100%}
+
+/* 접근성 */
+.sr-only{position:absolute; left:-9999px}
